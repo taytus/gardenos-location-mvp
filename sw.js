@@ -90,14 +90,18 @@
 
     if (isHtmlRequest(request)) {
       // NETWORK-FIRST for HTML. This is the anti-stale rule: never let the
-      // service worker trap the user on an old index.html.
+      // service worker trap the user on an old index.html. Only cache real
+      // 200 responses; a 404/500 must be shown to the user, never written
+      // over the cached shell.
       event.respondWith(
         fetch(request)
           .then(function (networkResponse) {
-            var clone = networkResponse.clone();
-            caches.open(CACHE).then(function (cache) {
-              cache.put("./index.html", clone).catch(function () {});
-            });
+            if (networkResponse && networkResponse.ok && networkResponse.status === 200) {
+              var clone = networkResponse.clone();
+              caches.open(CACHE).then(function (cache) {
+                cache.put("./index.html", clone).catch(function () {});
+              });
+            }
             return networkResponse;
           })
           .catch(function () {
