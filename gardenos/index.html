@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#173222" />
   <title>GardenOS v0.1</title>
+  <link rel="manifest" href="./manifest.webmanifest">
   <style>
     :root{
       --bg:#f4f6f0;
@@ -511,6 +512,132 @@
       line-height:1.5;
     }
 
+    .voice-recorder{
+      display:grid;
+      grid-template-columns:auto 1fr;
+      gap:16px;
+      align-items:center;
+      padding:16px;
+      border-radius:18px;
+      background:linear-gradient(135deg,#e9f4eb,#f8fbf7);
+      border:1px solid #d7e7db;
+      margin-bottom:14px;
+    }
+
+    .voice-side{
+      display:grid;
+      gap:8px;
+      min-width:0;
+    }
+
+    .record-btn{
+      width:84px;
+      height:84px;
+      border-radius:50%;
+      border:0;
+      background:var(--danger);
+      color:white;
+      font-size:16px;
+      font-weight:800;
+      box-shadow:0 10px 24px rgba(182,76,76,.3);
+      display:grid;
+      place-items:center;
+      flex-shrink:0;
+    }
+
+    .record-btn.recording{
+      background:var(--green-dark);
+      box-shadow:0 10px 24px rgba(23,50,34,.35);
+      animation:recordPulse 1.4s infinite;
+    }
+
+    .record-btn:disabled{opacity:.5;cursor:not-allowed}
+
+    @keyframes recordPulse{
+      0%,100%{transform:scale(1)}
+      50%{transform:scale(1.06)}
+    }
+
+    .voice-status{
+      font-size:13px;
+      color:#475249;
+      font-weight:600;
+      line-height:1.4;
+    }
+
+    .voice-status.error{color:var(--danger)}
+    .voice-status.ok{color:var(--green)}
+
+    .voice-hint{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+
+    .journal-audio{
+      margin-top:10px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .journal-audio audio{
+      width:100%;
+      max-width:380px;
+    }
+
+    .location-card{
+      display:block;
+      margin-top:10px;
+      padding:14px 16px;
+      border-radius:14px;
+      background:linear-gradient(135deg,#e9f4eb,#f8fbf7);
+      border:1px solid #d7e7db;
+      color:inherit;
+      text-decoration:none;
+      transition:filter .15s ease;
+    }
+
+    .location-card:hover{filter:brightness(.97)}
+
+    .location-card.location-denied,
+    .location-card.location-unavailable{
+      background:#fff8e8;
+      border-color:#f1dfb5;
+    }
+
+    .location-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:6px;
+    }
+
+    .location-coords{
+      font-family:ui-monospace,SFMono-Regular,monospace;
+      font-size:14px;
+      font-weight:700;
+      letter-spacing:-.01em;
+    }
+
+    .icon-btn.delete-pending{
+      background:var(--danger);
+      color:white;
+      border-color:var(--danger);
+      animation:pendingPulse 1.2s infinite;
+    }
+
+    @keyframes pendingPulse{
+      0%,100%{box-shadow:0 0 0 0 rgba(182,76,76,.45)}
+      50%{box-shadow:0 0 0 6px rgba(182,76,76,0)}
+    }
+
+    .pill.amber.quality-poor{background:#fde2e2;color:#a13a3a}
+    .pill.amber.quality-good{background:#fff3d9;color:#8a5a00}
+    .pill.quality-excellent{background:#d9efbe;color:#2f6b45}
+
     .mobile-nav{display:none}
 
     @media (max-width:1000px){
@@ -725,6 +852,16 @@
           </div>
           <button class="btn" onclick="openModal('journalModal')">+ Add observation</button>
         </div>
+        <div class="voice-recorder">
+          <button id="recordBtn" class="record-btn" onclick="toggleVoice()" title="Record voice note">● Record</button>
+          <div class="voice-side">
+            <label>
+              File this observation under
+              <select id="voiceSection"></select>
+            </label>
+            <div class="voice-status" id="voiceStatus">Tap to start a voice note. GPS is captured at the same time.</div>
+          </div>
+        </div>
         <div class="card">
           <div class="collection" id="journalList"></div>
         </div>
@@ -794,7 +931,7 @@
               All records are stored in your browser using localStorage. This makes the prototype immediately testable without accounts, servers, or setup.
             </div>
             <div class="modal-foot" style="justify-content:flex-start">
-              <button class="btn danger" onclick="resetDemo()">Reset demo data</button>
+              <button class="btn danger" id="resetDemoBtn" onclick="resetDemo()">Reset demo data</button>
             </div>
           </div>
         </div>
@@ -992,6 +1129,19 @@
     </form>
   </dialog>
 
+  <script src="./voice-gps.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(()=>{});
+      });
+      let _hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (_hadController) window.location.reload();
+        _hadController = true;
+      });
+    }
+  </script>
   <script>
     const STORAGE_KEY = "gardenos-v01";
 
@@ -1091,9 +1241,18 @@
         .concat(state.sections.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`))
         .join("");
 
-      ["plantingSection","taskSection","journalSection"].forEach(id=>{
-        document.getElementById(id).innerHTML = options;
+      ["plantingSection","taskSection","journalSection","voiceSection"].forEach(id=>{
+        const el = document.getElementById(id);
+        if(el) el.innerHTML = options;
       });
+
+      const voiceSel = document.getElementById("voiceSection");
+      if(voiceSel){
+        const fallback = (state.sections && state.sections.length) ? state.sections[0].id : "";
+        const target = voiceState.sectionId || lastJournalSectionId() || fallback || "";
+        voiceSel.value = target;
+        voiceState.sectionId = voiceSel.value;
+      }
     }
 
     function escapeHtml(text=""){
@@ -1144,7 +1303,7 @@
           </div>
           <div>
             <span class="pill ${overdue?"amber":""}">${overdue?"Overdue":formatDate(t.dueDate)}</span>
-            <button class="icon-btn" title="Delete" onclick="deleteTask('${t.id}')" style="margin-left:6px">🗑️</button>
+            <button class="icon-btn" data-delete-kind="task" data-delete-id="${t.id}" data-icon="🗑️" onclick="confirmDelete(this, deleteTask)" title="Delete" style="margin-left:6px">🗑️</button>
           </div>
         </div>`;
     }
@@ -1159,7 +1318,7 @@
           <div>
             <span class="pill">${escapeHtml(s.sun)}</span>
             <span class="pill">${escapeHtml(s.soil)}</span>
-            <button class="icon-btn" onclick="deleteSection('${s.id}')" title="Delete section" style="float:right">🗑️</button>
+            <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="confirmSectionDelete(this)" title="Delete section" style="float:right">🗑️</button>
           </div>
         </div>`).join("") : `<div class="empty">No garden sections yet.</div>`;
 
@@ -1176,7 +1335,7 @@
             <p>${escapeHtml(p.notes||"No notes")} ${p.plantDate?`· Planted ${formatDate(p.plantDate)}`:""}</p>
           </div>
           <div class="item-actions">
-            <button class="icon-btn" onclick="deletePlanting('${p.id}')" title="Delete">🗑️</button>
+            <button class="icon-btn" data-delete-kind="planting" data-delete-id="${p.id}" data-icon="🗑️" onclick="confirmDelete(this, deletePlanting)" title="Delete">🗑️</button>
           </div>
         </div>`).join("") : `<div class="empty">No plantings yet.</div>`;
       document.getElementById("plantingList").innerHTML = html;
@@ -1184,19 +1343,10 @@
 
     function renderJournal(){
       const entries = [...state.journal].sort((a,b)=>b.date.localeCompare(a.date));
-      const html = entries.length ? entries.map(j=>`
-        <div class="journal-entry">
-          <div class="section-title" style="margin-bottom:0">
-            <div>
-              <h4>${escapeHtml(j.title)}</h4>
-              <div class="meta">${formatDate(j.date)} · ${escapeHtml(sectionName(j.sectionId))}</div>
-            </div>
-            <button class="icon-btn" onclick="deleteJournal('${j.id}')" title="Delete">🗑️</button>
-          </div>
-          <p>${escapeHtml(j.description)}</p>
-          <div style="margin-top:10px">${(j.tags||[]).map(tag=>`<span class="pill">${escapeHtml(tag)}</span>`).join(" ")}</div>
-        </div>`).join("") : `<div class="empty">No observations yet.</div>`;
-      document.getElementById("journalList").innerHTML = html;
+      const html = entries.length ? entries.map(journalEntryHtml).join("") : `<div class="empty">No observations yet.</div>`;
+      const list = document.getElementById("journalList");
+      list.innerHTML = html;
+      attachAudioElements(list);
     }
 
     function renderRecommendations(){
@@ -1309,13 +1459,18 @@
     }
 
     function deleteJournal(id){
+      const entry = state.journal.find(j=>j.id===id);
       state.journal = state.journal.filter(j=>j.id!==id);
       saveData(); render();
+      if(entry && entry.audioId && window.GardenVoice && typeof GardenVoice.deleteAudio === "function"){
+        Promise.resolve(GardenVoice.deleteAudio(entry.audioId)).catch(()=>{});
+      }
     }
 
     function deleteSection(id){
       const hasChildren = state.plantings.some(p=>p.sectionId===id) || state.tasks.some(t=>t.sectionId===id) || state.journal.some(j=>j.sectionId===id);
-      if(hasChildren && !confirm("This section is linked to other records. Delete the section and leave those records unassigned?")) return;
+      if(hasChildren && !(pendingDelete && pendingDelete.kind === "section" && pendingDelete.id === id)) return;
+      pendingDelete = null;
       state.sections = state.sections.filter(s=>s.id!==id);
       state.plantings.forEach(p=>{if(p.sectionId===id)p.sectionId=""});
       state.tasks.forEach(t=>{if(t.sectionId===id)t.sectionId=""});
@@ -1338,11 +1493,324 @@
     }
 
     function resetDemo(){
-      if(!confirm("Reset all GardenOS prototype data?")) return;
+      const btn = document.getElementById("resetDemoBtn");
+      if(!pendingReset){
+        pendingReset = true;
+        if(btn){
+          btn.textContent = "Tap again to confirm reset";
+          btn.classList.add("delete-pending");
+        }
+        setTimeout(()=>{
+          if(pendingReset){
+            pendingReset = false;
+            if(btn && btn.isConnected){
+              btn.textContent = "Reset demo data";
+              btn.classList.remove("delete-pending");
+            }
+          }
+        }, 4000);
+        return;
+      }
+      pendingReset = false;
+      const audioIds = (state.journal||[]).map(j=>j.audioId).filter(Boolean);
       localStorage.removeItem(STORAGE_KEY);
+      if(window.GardenVoice && typeof GardenVoice.deleteAudio === "function"){
+        audioIds.forEach(id => { Promise.resolve(GardenVoice.deleteAudio(id)).catch(()=>{}); });
+      }
+      if(btn){
+        btn.textContent = "Reset demo data";
+        btn.classList.remove("delete-pending");
+      }
       state = loadData();
       render();
       showView("dashboard");
+    }
+
+    /* === Voice + GPS capture wiring (alpha slice) === */
+
+    const voiceState = {
+      recording: false,
+      starting: false,
+      sectionId: "",
+      gps: null,
+      startedAt: 0
+    };
+
+    let _activeAudioUrls = [];
+    let pendingDelete = null;
+    let pendingReset = false;
+
+    function qualityLabel(accuracyMeters){
+      if(accuracyMeters == null) return {label:"Unknown", className:"amber quality-poor"};
+      if(accuracyMeters <= 15) return {label:"Excellent", className:"quality-excellent"};
+      if(accuracyMeters <= 50) return {label:"Good", className:"amber quality-good"};
+      return {label:"Poor", className:"amber quality-poor"};
+    }
+
+    function mapsUrl(latitude, longitude){
+      return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    }
+
+    function lastJournalSectionId(){
+      for(let i = state.journal.length-1; i >= 0; i--){
+        if(state.journal[i].sectionId) return state.journal[i].sectionId;
+      }
+      return "";
+    }
+
+    function resolveVoiceSectionId(){
+      const sel = document.getElementById("voiceSection");
+      if(sel && sel.value) return sel.value;
+      const fromJournal = lastJournalSectionId();
+      if(fromJournal) return fromJournal;
+      if(state.sections && state.sections.length) return state.sections[0].id;
+      return "";
+    }
+
+    function setVoiceStatus(text, kind){
+      const el = document.getElementById("voiceStatus");
+      if(!el) return;
+      el.textContent = text || "";
+      el.className = "voice-status" + (kind ? " " + kind : "");
+    }
+
+    function setRecordButton(recording, label){
+      const btn = document.getElementById("recordBtn");
+      if(!btn) return;
+      btn.classList.toggle("recording", !!recording);
+      btn.textContent = label;
+    }
+
+    function onGpsProgress(update){
+      if(!voiceState.recording) return;
+      const elapsed = Math.max(0, Math.round((Date.now() - voiceState.startedAt) / 1000));
+      const remain = Math.max(0, 20 - elapsed);
+      const acc = (update && typeof update.accuracyMeters === "number") ? Math.round(update.accuracyMeters) : null;
+      const accText = (acc == null) ? "waiting for first fix" : `best ${acc} m`;
+      setVoiceStatus(`Recording. Acquiring GPS, ${accText}, ${remain} s left`);
+    }
+
+    async function startVoice(){
+      if(voiceState.recording || voiceState.starting) return;
+      if(!window.GardenVoice){
+        setVoiceStatus("Voice module failed to load. Refresh and try again.", "error");
+        return;
+      }
+      if(!window.isSecureContext){
+        setVoiceStatus("Voice and GPS require HTTPS or localhost. Serve the app over a secure origin to record.", "error");
+        return;
+      }
+      voiceState.starting = true;
+      voiceState.gps = null;
+      voiceState.startedAt = Date.now();
+      setRecordButton(true, "■ Stop");
+      setVoiceStatus("Requesting microphone…");
+      try {
+        if(typeof GardenVoice.acquireLocation === "function"){
+          GardenVoice.acquireLocation({onProgress: onGpsProgress})
+            .then(loc => { voiceState.gps = loc; })
+            .catch(()=>{});
+        }
+        await GardenVoice.startRecording();
+        voiceState.recording = true;
+        setVoiceStatus("Recording. Acquiring GPS, waiting for first fix, 20 s left");
+      } catch(err){
+        voiceState.recording = false;
+        setRecordButton(false, "● Record");
+        setVoiceStatus(`Microphone unavailable: ${err && err.message ? err.message : "permission denied"}.`, "error");
+      } finally {
+        voiceState.starting = false;
+      }
+    }
+
+    async function stopVoice(){
+      if(!voiceState.recording) return;
+      voiceState.recording = false;
+      setRecordButton(false, "● Record");
+      setVoiceStatus("Saving voice note…");
+      try {
+        const result = await GardenVoice.stopRecording();
+        if(!result || !result.audioBlob){
+          setVoiceStatus("Recording failed before save.", "error");
+          return;
+        }
+        const audioId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("aud-" + Date.now() + "-" + Math.random().toString(36).slice(2,10));
+        await GardenVoice.saveAudio(audioId, result.audioBlob, result.mimeType || "audio/webm");
+
+        const sectionId = resolveVoiceSectionId();
+        const loc = (result.location) || (voiceState.gps) || {status: "unavailable"};
+
+        const now = new Date();
+        const date = now.toISOString().slice(0,10);
+        const timeStr = now.toTimeString().slice(0,5);
+        const secName = sectionName(sectionId);
+        const title = (secName && secName !== "Unassigned")
+          ? `Voice note in ${secName} at ${timeStr}`
+          : `Voice note at ${timeStr}`;
+
+        const entry = {
+          id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("j-" + Date.now() + "-" + Math.random().toString(36).slice(2,10)),
+          title,
+          date,
+          sectionId,
+          tags: [],
+          description: "",
+          audioId,
+          durationMs: (typeof result.durationMs === "number") ? result.durationMs : null,
+          mimeType: result.mimeType || "audio/webm",
+          source: "gps"
+        };
+
+        if(loc.status === "captured" && typeof loc.latitude === "number" && typeof loc.longitude === "number"){
+          entry.latitude = loc.latitude;
+          entry.longitude = loc.longitude;
+          entry.accuracyMeters = loc.accuracyMeters;
+          entry.altitude = (typeof loc.altitude === "number") ? loc.altitude : null;
+          entry.locationCapturedAt = loc.capturedAt || now.toISOString();
+          entry.locationStatus = "captured";
+        } else if(loc.status === "denied"){
+          entry.locationStatus = "denied";
+        } else {
+          entry.locationStatus = "unavailable";
+        }
+
+        state.journal.unshift(entry);
+        voiceState.sectionId = sectionId;
+        saveData();
+        render();
+        const statusNote = entry.locationStatus === "captured"
+          ? "GPS captured."
+          : entry.locationStatus === "denied"
+            ? "Location was denied."
+            : "No GPS this time.";
+        setVoiceStatus(`Saved. ${statusNote}`, "ok");
+      } catch(err){
+        setVoiceStatus(`Save failed: ${err && err.message ? err.message : "unknown error"}.`, "error");
+      }
+    }
+
+    function toggleVoice(){
+      if(voiceState.recording) stopVoice();
+      else startVoice();
+    }
+
+    function confirmDelete(btn, deleteFn){
+      const kind = btn.dataset.deleteKind;
+      const id = btn.dataset.deleteId;
+      if(pendingDelete && pendingDelete.kind === kind && pendingDelete.id === id){
+        pendingDelete = null;
+        deleteFn(id);
+        return;
+      }
+      pendingDelete = {kind, id};
+      btn.textContent = "Confirm?";
+      btn.classList.add("delete-pending");
+      btn.title = "Tap again to confirm";
+      const orig = btn.dataset.icon || "🗑️";
+      setTimeout(()=>{
+        if(pendingDelete && pendingDelete.kind === kind && pendingDelete.id === id){
+          pendingDelete = null;
+          if(btn.isConnected){
+            btn.textContent = orig;
+            btn.classList.remove("delete-pending");
+            btn.title = "Delete";
+          }
+        }
+      }, 4000);
+    }
+
+    function confirmSectionDelete(btn){
+      const id = btn.dataset.deleteId;
+      const hasChildren = state.plantings.some(p=>p.sectionId===id) || state.tasks.some(t=>t.sectionId===id) || state.journal.some(j=>j.sectionId===id);
+      if(hasChildren){
+        if(pendingDelete && pendingDelete.kind === "section" && pendingDelete.id === id){
+          pendingDelete = null;
+          deleteSection(id);
+          return;
+        }
+        pendingDelete = {kind: "section", id};
+        btn.textContent = "Confirm?";
+        btn.classList.add("delete-pending");
+        btn.title = "Tap again. Linked records become unassigned.";
+        setTimeout(()=>{
+          if(pendingDelete && pendingDelete.kind === "section" && pendingDelete.id === id){
+            pendingDelete = null;
+            if(btn.isConnected){
+              btn.textContent = btn.dataset.icon || "🗑️";
+              btn.classList.remove("delete-pending");
+              btn.title = "Delete section";
+            }
+          }
+        }, 4000);
+        return;
+      }
+      deleteSection(id);
+    }
+
+    function attachAudioElements(root){
+      _activeAudioUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch(_){} });
+      _activeAudioUrls = [];
+      if(!window.GardenVoice || typeof GardenVoice.getAudioUrl !== "function") return;
+      const audios = root.querySelectorAll("audio[data-audio-id]");
+      audios.forEach(a => {
+        const id = a.dataset.audioId;
+        Promise.resolve(GardenVoice.getAudioUrl(id)).then(url => {
+          if(url && typeof url === "string"){
+            a.src = url;
+            if(url.indexOf("blob:") === 0) _activeAudioUrls.push(url);
+          }
+        }).catch(()=>{});
+      });
+    }
+
+    function locationCardHtml(j){
+      if(j.locationStatus === "denied"){
+        return `<div class="location-card location-denied"><div class="location-head"><strong>📍 Location denied</strong></div><div class="meta">Allow location access in your browser settings to capture coordinates on future notes.</div></div>`;
+      }
+      if(j.locationStatus === "unavailable"){
+        return `<div class="location-card location-unavailable"><div class="location-head"><strong>📍 No GPS signal</strong></div><div class="meta">A location fix could not be acquired. The audio note is still saved.</div></div>`;
+      }
+      if(typeof j.latitude !== "number" || typeof j.longitude !== "number") return "";
+      const q = (window.GardenVoice && GardenVoice.qualityLabel) ? GardenVoice.qualityLabel(j.accuracyMeters) : qualityLabel(j.accuracyMeters);
+      const url = (window.GardenVoice && GardenVoice.mapsUrl) ? GardenVoice.mapsUrl(j.latitude, j.longitude) : mapsUrl(j.latitude, j.longitude);
+      const acc = (typeof j.accuracyMeters === "number") ? Math.round(j.accuracyMeters) : null;
+      const alt = (typeof j.altitude === "number") ? ` · ${Math.round(j.altitude)} m altitude` : "";
+      const captured = j.locationCapturedAt ? new Date(j.locationCapturedAt).toLocaleTimeString(undefined, {hour:"2-digit", minute:"2-digit"}) : "";
+      return `
+        <a class="location-card" href="${url}" target="_blank" rel="noopener">
+          <div class="location-head">
+            <strong>📍 Captured here</strong>
+            <span class="pill ${escapeHtml(q.className || "")}">${escapeHtml(q.label || "GPS")}</span>
+          </div>
+          <div class="location-coords">${j.latitude.toFixed(6)}, ${j.longitude.toFixed(6)}</div>
+          <div class="meta">${acc != null ? `± ${acc} m accuracy` : ""}${alt}${captured ? ` · captured ${captured}` : ""}</div>
+          <div class="meta">Tap to open in Google Maps</div>
+        </a>`;
+    }
+
+    function journalEntryHtml(j){
+      const audioHtml = j.audioId
+        ? `<div class="journal-audio"><audio controls preload="none" data-audio-id="${j.audioId}"></audio>${(typeof j.durationMs === "number" && j.durationMs > 0) ? `<span class="pill">${Math.round(j.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
+        : "";
+      const locHtml = locationCardHtml(j);
+      const tagsHtml = (j.tags && j.tags.length)
+        ? `<div style="margin-top:10px">${j.tags.map(tag => `<span class="pill">${escapeHtml(tag)}</span>`).join(" ")}</div>`
+        : "";
+      const sourceMeta = (j.source === "gps") ? " · 🎙 voice" : "";
+      return `
+        <div class="journal-entry">
+          <div class="section-title" style="margin-bottom:0">
+            <div>
+              <h4>${escapeHtml(j.title)}</h4>
+              <div class="meta">${formatDate(j.date)} · ${escapeHtml(sectionName(j.sectionId))}${sourceMeta}</div>
+            </div>
+            <button class="icon-btn" data-delete-kind="journal" data-delete-id="${j.id}" data-icon="🗑️" onclick="confirmDelete(this, deleteJournal)" title="Delete">🗑️</button>
+          </div>
+          ${j.description ? `<p>${escapeHtml(j.description)}</p>` : ""}
+          ${audioHtml}
+          ${locHtml}
+          ${tagsHtml}
+        </div>`;
     }
 
     render();
