@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2618">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <title>GardenOS Location v0.4.0</title>
+  <link rel="manifest" href="./manifest.webmanifest?v=0.4.1">
+  <title>GardenOS Location</title>
   <style>
     :root{
       --bg:#eef2ec;
@@ -47,11 +47,16 @@
     .coords-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#bfd0c4;font-weight:800;margin-bottom:8px}
     .coords-value{display:block;font-size:clamp(24px,8vw,42px);font-weight:900;letter-spacing:-.04em;overflow-wrap:anywhere}
     .coords-meta{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-size:12px;color:#dce7df}
+    .coords-time{display:block;margin-top:10px;font-size:12px;color:#dce7df}
+    .coords-hint{display:block;margin-top:10px;font-size:12px;font-weight:800;color:#bdf4c7}
+    .coords.disabled .coords-hint{display:none}
     .quality{font-weight:900}
     .quality.excellent{color:#bdf4c7}.quality.good{color:#ffe39a}.quality.poor{color:#ffb0a8}
     .location-card{display:block;text-decoration:none;color:inherit;margin-top:12px;padding:16px;border-radius:16px;background:#f5f8f4;border:1px solid var(--line)}
+    .location-card.disabled{pointer-events:none;background:#f5f8f4}
     .location-card .coord-big{font-size:clamp(22px,7vw,34px);font-weight:900;letter-spacing:-.04em;overflow-wrap:anywhere}
     .location-card .map-hint{margin-top:8px;color:var(--green);font-size:12px;font-weight:800}
+    .location-card .altitude-row{margin-top:6px;color:var(--muted);font-size:12px}
     .section-head{display:flex;justify-content:space-between;align-items:end;margin:24px 2px 12px}
     .section-head h3{margin:0;font-size:18px}
     .section-head span{color:var(--muted);font-size:12px}
@@ -78,7 +83,7 @@
         <div class="logo">🌿</div>
         <div><h1>GardenOS Location</h1><p>Voice notes with real GPS only.</p></div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px"><span class="version-badge" id="versionBadge">v: 0.4.0</span><button id="installBtn" class="install">Install</button></div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="version-badge" id="versionBadge"></span><button id="installBtn" class="install">Install</button></div>
     </header>
 
     <section class="hero" id="hero">
@@ -93,7 +98,7 @@
 
       <div class="status" id="status">Ready to record</div>
       <div class="substatus" id="substatus">Microphone and location permissions will be requested.</div>
-      <a class="coords disabled" id="coords" href="#" target="_blank" rel="noopener"><span class="coords-label">Current coordinates</span><span class="coords-value">Location not captured yet</span><span class="coords-meta"><span id="accuracyText">Waiting for GPS</span><span id="qualityText" class="quality">—</span></span></a>
+      <a class="coords disabled" id="coords" href="#" target="_blank" rel="noopener"><span class="coords-label">Current location</span><span class="coords-value" id="coordsValue">Location not captured yet</span><span class="coords-meta"><span id="accuracyText">Waiting for GPS</span><span id="qualityText" class="quality">—</span></span><span class="coords-time" id="coordsTime" hidden></span><span class="coords-hint" id="coordsHint">Tap to open in Google Maps ↗</span></a>
     </section>
 
     <div class="notice" id="environmentNotice">Checking browser capabilities…</div>
@@ -107,7 +112,7 @@
   </main>
 
   <script>
-    const APP_VERSION = "0.4.0";
+    const APP_VERSION = "0.4.1";
     const DB_NAME = "gardenos-voice";
     const STORE = "recordings";
     let db;
@@ -128,6 +133,7 @@
     const environmentNotice = document.getElementById("environmentNotice");
     const versionBadge = document.getElementById("versionBadge");
     if(versionBadge) versionBadge.textContent = `v: ${APP_VERSION}`;
+    document.title = `GardenOS Location v${APP_VERSION}`;
 
     function setStatus(title, detail=""){
       statusEl.textContent = title;
@@ -161,8 +167,30 @@
       return new Promise((resolve,reject)=>{
         const tx = db.transaction(STORE,"readonly");
         const req = tx.objectStore(STORE).getAll();
-        req.onsuccess = () => resolve(req.result.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));
+        req.onsuccess = () => {
+          const rows = req.result || [];
+          rows.sort((a,b) => {
+            const at = a?.createdAt || "";
+            const bt = b?.createdAt || "";
+            return bt.localeCompare(at);
+          });
+          resolve(rows);
+        };
         req.onerror = () => reject(req.error);
+      });
+    }
+
+    function randomId(){
+      try{
+        if(typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"){
+          return crypto.randomUUID();
+        }
+      }catch(_){}
+      // RFC4122-ish fallback for older mobile browsers.
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
       });
     }
 
@@ -182,74 +210,162 @@
     }
 
     function mapsUrl(latitude, longitude){
-      return `https://www.google.com/maps?q=${latitude},${longitude}&z=20`;
+      return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    }
+
+    function formatCapturedAt(iso){
+      if(!iso) return "";
+      const d = new Date(iso);
+      if(Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString();
     }
 
     function renderCurrentLocation(location){
+      const valueEl = document.getElementById("coordsValue");
+      const accuracyEl = document.getElementById("accuracyText");
+      const qualityEl = document.getElementById("qualityText");
+      const timeEl = document.getElementById("coordsTime");
       if(location.status !== "captured"){
         coordsEl.classList.add("disabled");
         coordsEl.removeAttribute("href");
-        coordsEl.querySelector(".coords-value").textContent = `Location ${location.status}`;
-        document.getElementById("accuracyText").textContent = "No usable GPS fix";
-        document.getElementById("qualityText").textContent = "—";
-        document.getElementById("qualityText").className = "quality";
+        valueEl.textContent = location.status === "denied"
+          ? "Location denied"
+          : "Location unavailable";
+        accuracyEl.textContent = location.status === "denied"
+          ? "Permission required for GPS"
+          : "No usable GPS fix";
+        qualityEl.textContent = "—";
+        qualityEl.className = "quality";
+        if(timeEl){ timeEl.hidden = true; timeEl.textContent = ""; }
         return;
       }
       const quality = locationQuality(location.accuracyMeters);
       coordsEl.classList.remove("disabled");
       coordsEl.href = mapsUrl(location.latitude, location.longitude);
-      coordsEl.querySelector(".coords-value").textContent = `${location.latitude.toFixed(7)}, ${location.longitude.toFixed(7)}`;
-      document.getElementById("accuracyText").textContent = `Accuracy ±${Math.round(location.accuracyMeters)} m`;
-      const qualityEl = document.getElementById("qualityText");
+      valueEl.textContent = `${location.latitude.toFixed(7)}, ${location.longitude.toFixed(7)}`;
+      accuracyEl.textContent = `Accuracy ±${Math.round(location.accuracyMeters)} m`;
       qualityEl.textContent = quality.label;
       qualityEl.className = `quality ${quality.className}`;
+      if(timeEl){
+        let text = `Captured ${formatCapturedAt(location.capturedAt)}`;
+        if(location.altitude != null && Number.isFinite(location.altitude)){
+          text += ` · Altitude ${Math.round(location.altitude)} m`;
+        }
+        timeEl.textContent = text;
+        timeEl.hidden = false;
+      }
     }
 
-    function getLocation(){
+    function renderAcquiring(best, msRemaining){
+      const seconds = Math.max(0, Math.ceil(msRemaining / 1000));
+      if(best && best.accuracyMeters != null){
+        substatusEl.textContent = `Acquiring GPS… best ±${Math.round(best.accuracyMeters)} m (${seconds} s left)`;
+      } else {
+        substatusEl.textContent = `Acquiring GPS… (${seconds} s left)`;
+      }
+      if(best){
+        renderCurrentLocation(best);
+      }
+    }
+
+    async function copyTextToClipboard(text){
+      if(navigator.clipboard && window.isSecureContext){
+        try{
+          await navigator.clipboard.writeText(text);
+          return true;
+        }catch(_){}
+      }
+      try{
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly","");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand && document.execCommand("copy");
+        document.body.removeChild(ta);
+        return !!ok;
+      }catch(_){
+        return false;
+      }
+    }
+
+    function acquireLocation({onProgress} = {}){
+      const WINDOW_MS = 20000;
+      const EARLY_STOP_M = 15;
+      const empty = {status:"unavailable",latitude:null,longitude:null,accuracyMeters:null,altitude:null,capturedAt:null};
       return new Promise(resolve=>{
         if(!navigator.geolocation){
-          resolve({status:"unavailable",latitude:null,longitude:null,accuracyMeters:null});
+          resolve({status:"unavailable",latitude:null,longitude:null,accuracyMeters:null,altitude:null,capturedAt:null});
           return;
         }
 
         let best = null;
         let settled = false;
+        let watchId = null;
+        let timeoutId = null;
+        const startedAt = Date.now();
+
         const finish = result => {
           if(settled) return;
           settled = true;
-          if(watchId !== null) navigator.geolocation.clearWatch(watchId);
-          clearTimeout(timeoutId);
+          if(watchId !== null){
+            try{ navigator.geolocation.clearWatch(watchId); }catch(_){}
+            watchId = null;
+          }
+          if(timeoutId !== null){
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
           resolve(result);
         };
 
-        const watchId = navigator.geolocation.watchPosition(
+        const reportProgress = () => {
+          if(typeof onProgress === "function"){
+            const remaining = Math.max(0, WINDOW_MS - (Date.now() - startedAt));
+            onProgress(best, remaining);
+          }
+        };
+
+        watchId = navigator.geolocation.watchPosition(
           pos => {
             const candidate = {
               status:"captured",
               latitude:pos.coords.latitude,
               longitude:pos.coords.longitude,
               accuracyMeters:pos.coords.accuracy,
-              altitude:pos.coords.altitude,
-              capturedAt:new Date(pos.timestamp).toISOString()
+              altitude: pos.coords.altitude == null ? null : pos.coords.altitude,
+              capturedAt: new Date(pos.timestamp).toISOString()
             };
             if(!best || candidate.accuracyMeters < best.accuracyMeters) best = candidate;
-            renderCurrentLocation(best);
-            if(candidate.accuracyMeters <= 15) finish(candidate);
+            reportProgress();
+            if(candidate.accuracyMeters <= EARLY_STOP_M){
+              finish(candidate);
+            }
           },
-          err => finish(best || {
-            status:err.code===1 ? "denied" : "unavailable",
-            latitude:null,
-            longitude:null,
-            accuracyMeters:null,
-            altitude:null,
-            capturedAt:new Date().toISOString()
-          }),
-          {enableHighAccuracy:true,timeout:20000,maximumAge:0}
+          err => {
+            // PERMISSION_DENIED is fatal: the user said no, stop trying.
+            if(err && err.code === 1){
+              finish({
+                status:"denied",
+                latitude:null,
+                longitude:null,
+                accuracyMeters:null,
+                altitude:null,
+                capturedAt:new Date().toISOString()
+              });
+              return;
+            }
+            // Transient (POSITION_UNAVAILABLE / TIMEOUT): keep watching.
+            reportProgress();
+          },
+          {enableHighAccuracy:true, maximumAge:0, timeout:20000}
         );
 
-        const timeoutId = setTimeout(()=>finish(best || {
-          status:"unavailable",latitude:null,longitude:null,accuracyMeters:null,altitude:null,capturedAt:new Date().toISOString()
-        }),20000);
+        timeoutId = setTimeout(()=>{
+          finish(best || empty);
+        }, WINDOW_MS);
       });
     }
 
@@ -264,64 +380,81 @@
         return;
       }
 
+      let stream;
       try{
-        setStatus("Getting ready","Requesting microphone and GPS permissions.");
-        const [stream, location] = await Promise.all([
-          navigator.mediaDevices.getUserMedia({audio:true}),
-          getLocation()
-        ]);
-
-        lastLocation = location;
-        renderCurrentLocation(location);
-
-        const mimeType = supportedMimeType();
-        recorder = mimeType ? new MediaRecorder(stream,{mimeType}) : new MediaRecorder(stream);
-        chunks = [];
-        startedAt = Date.now();
-
-        recorder.ondataavailable = e => {
-          if(e.data && e.data.size>0) chunks.push(e.data);
-        };
-
-        recorder.onstop = async () => {
-          const durationMs = Date.now() - startedAt;
-          const blob = new Blob(chunks,{type:recorder.mimeType || mimeType || "audio/webm"});
-          stream.getTracks().forEach(track=>track.stop());
-
-          setStatus("Saving recording","Storing audio and GPS data on this device.");
-          const record = {
-            id:crypto.randomUUID(),
-            createdAt:new Date().toISOString(),
-            durationMs,
-            audioBlob:blob,
-            mimeType:blob.type,
-            latitude:lastLocation?.latitude ?? null,
-            longitude:lastLocation?.longitude ?? null,
-            accuracyMeters:lastLocation?.accuracyMeters ?? null,
-            locationStatus:lastLocation?.status ?? "unavailable",
-            altitude:lastLocation?.altitude ?? null,
-            locationCapturedAt:lastLocation?.capturedAt ?? null,
-            note:null
-          };
-
-          await putRecording(record);
-          setStatus("Saved","Tap the microphone when you want to capture another observation.");
-          recordWrap.classList.remove("recording");
-          recordBtn.textContent="🎙️";
-          recordBtn.setAttribute("aria-label","Start recording");
-          await renderList();
-        };
-
-        recorder.start();
-        recordWrap.classList.add("recording");
-        recordBtn.textContent="■";
-        recordBtn.setAttribute("aria-label","Stop recording");
-        setStatus("Recording","Speak naturally. Tap again to stop and save.");
+        setStatus("Getting ready","Requesting microphone access.");
+        stream = await navigator.mediaDevices.getUserMedia({audio:true});
       }catch(error){
         console.error(error);
         setStatus("Permission blocked","Allow microphone access in your browser settings and try again.");
-        recordWrap.classList.remove("recording");
+        return;
       }
+
+      // Start GPS acquisition CONCURRENTLY — do not await it. Recording begins
+      // immediately; GPS sharpens in the background and is awaited on stop.
+      let locationPromise = acquireLocation({onProgress: renderAcquiring});
+
+      const mimeType = supportedMimeType();
+      recorder = mimeType ? new MediaRecorder(stream,{mimeType}) : new MediaRecorder(stream);
+      chunks = [];
+      startedAt = Date.now();
+      const recordingCreatedAt = new Date().toISOString();
+
+      recorder.ondataavailable = e => {
+        if(e.data && e.data.size>0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const durationMs = Date.now() - startedAt;
+        const blob = new Blob(chunks,{type:recorder.mimeType || mimeType || "audio/webm"});
+        stream.getTracks().forEach(track=>track.stop());
+
+        setStatus("Saving recording","Finalizing GPS and storing audio on this device.");
+        const location = await locationPromise;
+        lastLocation = location;
+        renderCurrentLocation(location);
+
+        const record = {
+          id: randomId(),
+          createdAt: recordingCreatedAt,
+          durationMs,
+          audioBlob: blob,
+          mimeType: blob.type,
+          latitude: location?.latitude ?? null,
+          longitude: location?.longitude ?? null,
+          accuracyMeters: location?.accuracyMeters ?? null,
+          altitude: location?.altitude ?? null,
+          locationCapturedAt: location?.capturedAt ?? null,
+          locationStatus: location?.status ?? "unavailable",
+          source: "gps",
+          note: null
+        };
+
+        try{
+          await putRecording(record);
+          setStatus("Saved","Tap the microphone when you want to capture another observation.");
+        }catch(error){
+          console.error(error);
+          setStatus("Save failed","Could not store this recording. Check IndexedDB permissions.");
+        }
+        recordWrap.classList.remove("recording");
+        recordBtn.textContent="🎙️";
+        recordBtn.setAttribute("aria-label","Start recording");
+        await renderList();
+      };
+
+      try{
+        recorder.start();
+      }catch(error){
+        console.error(error);
+        stream.getTracks().forEach(track=>track.stop());
+        setStatus("Recording unavailable","Could not start the audio recorder.");
+        return;
+      }
+      recordWrap.classList.add("recording");
+      recordBtn.textContent="■";
+      recordBtn.setAttribute("aria-label","Stop recording");
+      setStatus("Recording","Speak naturally. Tap again to stop and save.");
     }
 
     function stopRecording(){
@@ -337,7 +470,19 @@
     });
 
     async function renderList(){
-      const records = (await getRecordings()).filter(record => record.source !== "demo" && record.note !== "Preview demo");
+      // Revoke any blob URLs currently rendered so we never leak them across re-renders.
+      const liveAudios = listEl.querySelectorAll("audio");
+      for(const a of liveAudios){
+        const src = a.getAttribute("src") || "";
+        if(src.startsWith("blob:")) URL.revokeObjectURL(src);
+      }
+
+      const records = (await getRecordings()).filter(record =>
+        record.source !== "demo" &&
+        record.note !== "Preview demo" &&
+        record.isDemo !== true &&
+        record.demo !== true
+      );
       countEl.textContent = `${records.length} saved`;
 
       if(!records.length){
@@ -352,10 +497,36 @@
         const url = URL.createObjectURL(record.audioBlob);
         const date = new Date(record.createdAt);
         const seconds = Math.max(1,Math.round(record.durationMs/1000));
-        const locationText = record.locationStatus==="captured"
-          ? `${record.latitude.toFixed(7)}, ${record.longitude.toFixed(7)}`
-          : `Location ${record.locationStatus}`;
-        const quality = record.locationStatus==="captured" ? locationQuality(record.accuracyMeters) : null;
+        const captured = record.locationStatus === "captured" && record.latitude != null && record.longitude != null;
+        const quality = captured ? locationQuality(record.accuracyMeters) : null;
+
+        let locationCard;
+        if(captured){
+          const lat = Number(record.latitude).toFixed(7);
+          const lon = Number(record.longitude).toFixed(7);
+          const acc = Math.round(record.accuracyMeters);
+          const time = formatCapturedAt(record.locationCapturedAt || record.createdAt);
+          const altitudeRow = (record.altitude != null && Number.isFinite(record.altitude))
+            ? `<div class="altitude-row">Altitude ${Math.round(record.altitude)} m</div>`
+            : "";
+          locationCard = `
+            <a class="location-card" href="${mapsUrl(record.latitude, record.longitude)}" target="_blank" rel="noopener">
+              <div class="coord-big">${lat}, ${lon}</div>
+              <div class="meta">Accuracy ±${acc} m · ${quality.label}</div>
+              <div class="meta">Captured ${time}</div>
+              ${altitudeRow}
+              <div class="map-hint">Tap to open in Google Maps ↗</div>
+            </a>`;
+        } else {
+          const label = record.locationStatus === "denied" ? "Location denied" : "Location unavailable";
+          locationCard = `
+            <div class="location-card disabled" aria-disabled="true">
+              <div class="coord-big">${label}</div>
+              <div class="meta">${label}</div>
+            </div>`;
+        }
+
+        const pill = captured ? `GPS ${quality.label}` : "No GPS";
 
         card.innerHTML = `
           <div class="card-top">
@@ -363,9 +534,9 @@
               <div class="title">${date.toLocaleString()}</div>
               <div class="meta">${seconds} sec</div>
             </div>
-            <span class="pill">${record.locationStatus==="captured" ? `GPS ${quality.label}` : "No GPS"}</span>
+            <span class="pill">${pill}</span>
           </div>
-          ${record.locationStatus==="captured" ? `<a class="location-card" href="${mapsUrl(record.latitude,record.longitude)}" target="_blank" rel="noopener"><div class="coord-big">${locationText}</div><div class="meta">Accuracy ±${Math.round(record.accuracyMeters)} m · ${quality.label}</div><div class="map-hint">Open this exact point in Google Maps ↗</div></a>` : `<div class="location-card"><div class="coord-big">No GPS</div><div class="meta">Location ${record.locationStatus}</div></div>`}
+          ${locationCard}
           <audio controls preload="metadata" src="${url}"></audio>
           <div class="actions">
             <button class="btn secondary copy-btn">Copy coordinates</button>
@@ -373,16 +544,42 @@
           </div>
         `;
 
-        card.querySelector(".copy-btn").addEventListener("click",async()=>{
-          if(record.locationStatus!=="captured"){
-            alert("This recording has no coordinates.");
+        const copyBtn = card.querySelector(".copy-btn");
+        const deleteBtn = card.querySelector(".delete-btn");
+
+        copyBtn.addEventListener("click", async () => {
+          const original = copyBtn.dataset.label || copyBtn.textContent;
+          copyBtn.dataset.label = original;
+          if(!captured){
+            copyBtn.textContent = "No coordinates";
+            copyBtn.disabled = true;
+            setTimeout(() => {
+              copyBtn.textContent = original;
+              copyBtn.disabled = false;
+            }, 2000);
             return;
           }
-          await navigator.clipboard.writeText(`${record.latitude}, ${record.longitude}`);
+          const text = `${record.latitude}, ${record.longitude}`;
+          const ok = await copyTextToClipboard(text);
+          copyBtn.textContent = ok ? "Copied" : "Copy failed";
+          setTimeout(() => { copyBtn.textContent = original; }, 2000);
         });
 
-        card.querySelector(".delete-btn").addEventListener("click",async()=>{
-          if(!confirm("Delete this recording?")) return;
+        // Two-tap confirm: first tap arms the button, second tap deletes.
+        let deleteArmed = false;
+        let deleteTimer = null;
+        deleteBtn.addEventListener("click", async () => {
+          if(!deleteArmed){
+            deleteArmed = true;
+            deleteBtn.textContent = "Tap again to delete";
+            deleteTimer = setTimeout(() => {
+              deleteArmed = false;
+              deleteBtn.textContent = "Delete";
+              deleteTimer = null;
+            }, 4000);
+            return;
+          }
+          if(deleteTimer){ clearTimeout(deleteTimer); deleteTimer = null; }
           URL.revokeObjectURL(url);
           await deleteRecording(record.id);
           await renderList();
@@ -410,7 +607,10 @@
     async function purgeLegacyDemoRecords(){
       const records = await getRecordings();
       const demoRecords = records.filter(record =>
-        record.source === "demo" || record.note === "Preview demo"
+        record.source === "demo" ||
+        record.note === "Preview demo" ||
+        record.isDemo === true ||
+        record.demo === true
       );
       for(const record of demoRecords){
         await deleteRecording(record.id);
@@ -439,8 +639,16 @@
         
       }
 
-      if("serviceWorker" in navigator && secure && !embedded){
-        try{ await navigator.serviceWorker.register("./sw.js"); }catch(error){ console.warn(error); }
+      if("serviceWorker" in navigator && window.isSecureContext && window.self === window.top){
+        try{
+          await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`, { updateViaCache: "none" });
+          let reloaded = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if(reloaded) return;
+            reloaded = true;
+            location.reload();
+          });
+        }catch(error){ console.warn("Service worker registration failed", error); }
       }
     }
 
