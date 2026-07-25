@@ -8,10 +8,13 @@
 set -u
 
 REPO_ROOT="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
-A="$REPO_ROOT/gardenos/index.html"
-V="$REPO_ROOT/gardenos/voice-gps.js"
-S="$REPO_ROOT/gardenos/sw.js"
-M="$REPO_ROOT/gardenos/manifest.webmanifest"
+# The merged GardenOS + voice/GPS app is the site front door. The merge gate
+# still guards the SAME APP — its source files moved from /gardenos/ up to
+# the repo root in the nextsteps-0725-delta layout swap.
+A="$REPO_ROOT/index.html"
+V="$REPO_ROOT/voice-gps.js"
+S="$REPO_ROOT/sw.js"
+M="$REPO_ROOT/manifest.webmanifest"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -226,18 +229,26 @@ fi
 
 # ----- HYGIENE (19-20) -----
 
-# Check 19: no coordinate literals or "Run preview demo" under gardenos/
+# Check 19: no coordinate literals or "Run preview demo" in the merged app's
+# production source files. docs/, tests/, scripts/, and PRD files are repo
+# metadata (the docs in particular intentionally record the strings this gate
+# is checking have been removed) and are out of scope for this check.
 hit=""
+PROD_GLOBS=("$REPO_ROOT/index.html" "$REPO_ROOT/sw.js" "$REPO_ROOT/manifest.webmanifest" "$REPO_ROOT/voice-gps.js" "$REPO_ROOT/README.md" "$REPO_ROOT/RELEASE-NOTES.md"
+            "$REPO_ROOT/location/index.html" "$REPO_ROOT/location/sw.js" "$REPO_ROOT/location/manifest.webmanifest" "$REPO_ROOT/location/README.md")
 for pat in '36.3990' '-92.9099' 'Run preview demo'; do
-  if grep -rqF -- "$pat" "$REPO_ROOT/gardenos/" 2>/dev/null; then
-    hit="$pat"
-    break
-  fi
+  for f in "${PROD_GLOBS[@]}"; do
+    [ -f "$f" ] || continue
+    if grep -qF -- "$pat" "$f" 2>/dev/null; then
+      hit="$pat in $(basename "$f")"
+      break 2
+    fi
+  done
 done
 if [ -z "$hit" ]; then
-  pass "no hardcoded demo coordinates or \"Run preview demo\" text under gardenos/"
+  pass "no hardcoded demo coordinates or \"Run preview demo\" text in merged app or /location/ source"
 else
-  fail "no hardcoded demo coordinates or \"Run preview demo\" text under gardenos/" "found: $hit"
+  fail "no hardcoded demo coordinates or \"Run preview demo\" text in merged app or /location/ source" "found: $hit"
 fi
 
 # Check 20: voice-gps.js + sw.js parse; every inline <script> in index.html parses

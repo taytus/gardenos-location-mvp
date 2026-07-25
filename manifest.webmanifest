@@ -1,22 +1,22 @@
 {
-  "name": "GardenOS Location",
+  "name": "GardenOS",
   "short_name": "GardenOS",
-  "description": "Capture voice notes with real GPS coordinates in the field.",
-  "start_url": "./index.html?v=0.4.1",
+  "description": "Garden companion for plantings, sections, tasks and geotagged voice journal entries.",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f2618",
-  "theme_color": "#0f2618",
+  "background_color": "#f4f6f0",
+  "theme_color": "#173222",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Crect width=%22192%22 height=%22192%22 fill=%22%230f2618%22/%3E%3Cpath d=%22M96 28 C 52 52 52 140 96 164 C 140 140 140 52 96 28 Z%22 fill=%22%237cb342%22/%3E%3Cline x1=%2296%22 y1=%2228%22 x2=%2296%22 y2=%22164%22 stroke=%22%230f2618%22 stroke-width=%223%22/%3E%3C/svg%3E",
+      "src": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20192%20192%22%3E%3Crect%20width%3D%22192%22%20height%3D%22192%22%20fill%3D%22%23173222%22%2F%3E%3Ccircle%20cx%3D%2296%22%20cy%3D%2296%22%20r%3D%2273%22%20fill%3D%22%232f6b45%22%2F%3E%3Cpath%20d%3D%22M96%2058C127%2065%20142%2088%20134%20115C127%20142%20111%20150%20100%20142C84%20134%2073%20115%2069%2092C65%2073%2081%2061%2096%2058Z%22%20fill%3D%22%23e5f0e7%22%2F%3E%3Cline%20x1%3D%2296%22%20y1%3D%2261%22%20x2%3D%2296%22%20y2%3D%22138%22%20stroke%3D%22%23173222%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Crect width=%22512%22 height=%22512%22 fill=%22%230f2618%22/%3E%3Cpath d=%22M256 76 C 138 138 138 374 256 436 C 374 374 374 138 256 76 Z%22 fill=%22%237cb342%22/%3E%3Cline x1=%22256%22 y1=%2276%22 x2=%22256%22 y2=%22436%22 stroke=%22%230f2618%22 stroke-width=%228%22/%3E%3C/svg%3E",
+      "src": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%23173222%22%2F%3E%3Ccircle%20cx%3D%22256%22%20cy%3D%22256%22%20r%3D%22195%22%20fill%3D%22%232f6b45%22%2F%3E%3Cpath%20d%3D%22M256%20154C338%20174%20379%20236%20358%20307C338%20379%20297%20399%20266%20379C225%20358%20195%20307%20184%20246C174%20195%20215%20164%20256%20154Z%22%20fill%3D%22%23e5f0e7%22%2F%3E%3Cline%20x1%3D%22256%22%20y1%3D%22164%22%20x2%3D%22256%22%20y2%3D%22369%22%20stroke%3D%22%23173222%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
