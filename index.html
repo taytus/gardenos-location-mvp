@@ -83,7 +83,7 @@
         <div class="logo">🌿</div>
         <div><h1>GardenOS Location</h1><p>Voice notes with real GPS only.</p></div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px"><span class="version-badge" id="versionBadge"></span><button id="installBtn" class="install">Install</button></div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="version-badge" id="versionBadge">v: 0.4.1</span><button id="installBtn" class="install">Install</button></div>
     </header>
 
     <section class="hero" id="hero">
@@ -634,16 +634,17 @@
         await renderList();
       }catch(error){
         console.error(error);
-        environmentNotice.innerHTML += "<br><strong>IndexedDB is blocked too.</strong> Open the downloaded app in a normal browser.";
-        setStatus("Storage unavailable","This preview could not open IndexedDB.");
-        
+        environmentNotice.innerHTML += "<br><strong>IndexedDB is blocked.</strong> Recordings cannot be saved until storage is allowed. Check that the browser is not blocking site data, and that you are not in private browsing.";
+        setStatus("Storage unavailable","Recordings cannot be saved. Check that the browser is not blocking site data, and that you are not in private browsing.");
       }
 
       if("serviceWorker" in navigator && window.isSecureContext && window.self === window.top){
         try{
+          const hadController = !!navigator.serviceWorker.controller;
           await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`, { updateViaCache: "none" });
           let reloaded = false;
           navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if(!hadController) return;
             if(reloaded) return;
             reloaded = true;
             location.reload();
