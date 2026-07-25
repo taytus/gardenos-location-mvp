@@ -1,0 +1,25 @@
+{
+  "name": "GardenOS Location",
+  "short_name": "GardenOS",
+  "description": "Capture voice notes with real GPS coordinates in the field.",
+  "start_url": "./index.html?v=0.4.1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f2618",
+  "theme_color": "#0f2618",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Crect width=%22192%22 height=%22192%22 fill=%22%230f2618%22/%3E%3Cpath d=%22M96 28 C 52 52 52 140 96 164 C 140 140 140 52 96 28 Z%22 fill=%22%237cb342%22/%3E%3Cline x1=%2296%22 y1=%2228%22 x2=%2296%22 y2=%22164%22 stroke=%22%230f2618%22 stroke-width=%223%22/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Crect width=%22512%22 height=%22512%22 fill=%22%230f2618%22/%3E%3Cpath d=%22M256 76 C 138 138 138 374 256 436 C 374 374 374 138 256 76 Z%22 fill=%22%237cb342%22/%3E%3Cline x1=%22256%22 y1=%2276%22 x2=%22256%22 y2=%22436%22 stroke=%22%230f2618%22 stroke-width=%228%22/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

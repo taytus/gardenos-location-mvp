@@ -11,12 +11,15 @@ open question that this file used to pose is no longer open.
   - branch: `main`
   - path: `/` (repository root)
   - HTTPS enforced: yes
+- Site root serves the merged GardenOS app; the v0.4.1 voice recorder
+  experiment is reachable at `/location/`.
 - Current shipped version: `0.4.1`
 - Current release commit on `main`: `19f0048` ("Release GardenOS
   Location v0.4.1")
 - Current annotated tag: `v0.4.1`
-- Live site at the time of writing matches `main` and shows the
-  visible badge `v: 0.4.1`.
+- Live site at the time of writing matches `main`. The recorder at
+  `/location/` shows the visible badge `v: 0.4.1`; the site root
+  shows the merged GardenOS title.
 
 ## Where the old demo UI came from (resolved)
 
@@ -89,4 +92,8 @@ Nothing in this document represents an open investigation. The
 demo-UI mystery is resolved. The stale-service-worker possibility is
 resolved. The current release is `v0.4.1` at commit `19f0048`, the
 service worker and manifest are present, and the release validator
-keeps it that way.
+keeps it that way. After the nextsteps-0725-delta layout swap the
+merged GardenOS app is at the site root and the v0.4.1 voice recorder
+experiment lives at `/location/` — phones with the old SW installed at
+`/` upgrade to GardenOS on a normal reload, because the new root SW
+uses a new cache name and the activate step deletes the old one.
