@@ -6,8 +6,8 @@
 #   2. Starts `python3 -m http.server` on 127.0.0.1:<port> serving this repo root.
 #   3. Waits for it to answer a real HTTP request before launching harnesses.
 #   4. Runs both harnesses with the right base URL.
-#        e2e-verify.mjs  → http://127.0.0.1:<port>/          (root app)
-#        e2e-merge.mjs   → http://127.0.0.1:<port>/gardenos/  (merged app)
+#        e2e-merge.mjs   → http://127.0.0.1:<port>/           (GardenOS, the root app)
+#        e2e-verify.mjs  → http://127.0.0.1:<port>/location/  (legacy voice recorder)
 #   5. Tears the server down on EXIT (trap), even on harness failure or Ctrl-C.
 #      Belt-and-braces: also kills any leftover listener on that port.
 #
@@ -73,12 +73,12 @@ VERIFY_RC=0
 MERGE_RC=0
 
 echo
-echo "[run-e2e] === e2e-verify.mjs  (root app at http://127.0.0.1:$PORT/) ==="
-node tests/e2e-verify.mjs "http://127.0.0.1:$PORT/" || VERIFY_RC=$?
+echo "[run-e2e] === e2e-merge.mjs   (GardenOS at http://127.0.0.1:$PORT/) ==="
+node tests/e2e-merge.mjs "http://127.0.0.1:$PORT/" || MERGE_RC=$?
 
 echo
-echo "[run-e2e] === e2e-merge.mjs   (merged app at http://127.0.0.1:$PORT/gardenos/) ==="
-node tests/e2e-merge.mjs "http://127.0.0.1:$PORT/gardenos/" || MERGE_RC=$?
+echo "[run-e2e] === e2e-verify.mjs  (legacy recorder at http://127.0.0.1:$PORT/location/) ==="
+node tests/e2e-verify.mjs "http://127.0.0.1:$PORT/location/" || VERIFY_RC=$?
 
 echo
 echo "[run-e2e] verify_rc=$VERIFY_RC  merge_rc=$MERGE_RC"

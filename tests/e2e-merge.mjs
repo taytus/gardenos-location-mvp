@@ -3,7 +3,7 @@
 // Drives the real merged app in Chromium with a fake microphone and scripted GPS.
 // Proves BOTH that voice+GPS capture works AND that GardenOS v0.1 lost nothing.
 //
-//   node e2e-merge.mjs http://localhost:8124/gardenos/
+//   node e2e-merge.mjs http://localhost:8124/
 
 // Locate Playwright without hardcoding a machine-specific absolute path.
 // Resolution order:
@@ -39,7 +39,7 @@ let chromium;
   chromium = loaded.chromium;
 }
 
-const BASE = process.argv[2] || 'http://localhost:8124/gardenos/';
+const BASE = process.argv[2] || 'http://localhost:8124/';
 const results = [];
 let phase = '';
 const check = (name, ok, detail = '') => {

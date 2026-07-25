@@ -10,10 +10,10 @@ DOM. Every other `tests/*.sh` file is a static / structure check.
 | File | What it covers |
 |---|---|
 | `e2e-verify.mjs` | The root location app (`index.html`, `sw.js`, `manifest.webmanifest`). Voice recording with improving GPS, GPS denied, poor fix labelling, legacy demo purge. |
-| `e2e-merge.mjs`  | The merged GardenOS app (`gardenos/index.html`, `gardenos/sw.js`). GardenOS v0.1 regression coverage (sections, plants, tasks, journal, settings, all handlers) + the new voice+GPS capture that adds a journal entry. |
+| `e2e-merge.mjs`  | The merged GardenOS app (`index.html`, `sw.js` at the repo root). GardenOS v0.1 regression coverage (sections, plants, tasks, journal, settings, all handlers) + the new voice+GPS capture that adds a journal entry. |
 | `run-e2e.sh` | One-shot runner. Picks a free port, starts `python3 -m http.server` on the repo root, runs both harnesses, tears the server down on EXIT. |
 | `validate-release.sh` | Static release gate (string/structure checks against `index.html`, `sw.js`, `manifest.webmanifest`, `VERSION`). Unrelated to this README. |
-| `validate-merge.sh`  | Static merge gate for the `gardenos/` directory. Unrelated to this README. |
+| `validate-merge.sh`  | Static merge gate for the GardenOS app at the repo root. Unrelated to this README. |
 
 ## Prerequisite: Playwright
 
@@ -63,7 +63,7 @@ That single command:
 1. Picks a free TCP port (no assumptions about 8123/8124).
 2. Starts `python3 -m http.server 127.0.0.1:<port>` serving the repo root.
 3. Runs `e2e-verify.mjs` against `http://127.0.0.1:<port>/`.
-4. Runs `e2e-merge.mjs`  against `http://127.0.0.1:<port>/gardenos/`.
+4. Runs `e2e-merge.mjs`  against `http://127.0.0.1:<port>/`.
 5. Tears the server down on EXIT — even if a harness fails or you hit Ctrl-C.
 6. Prints `RESULT=PASS` and exits 0 only when both harnesses are green.
 
@@ -73,7 +73,7 @@ yourself and pass the URL:
 ```bash
 python3 -m http.server 8123 &
 node tests/e2e-verify.mjs http://127.0.0.1:8123/
-node tests/e2e-merge.mjs  http://127.0.0.1:8123/gardenos/
+node tests/e2e-merge.mjs  http://127.0.0.1:8123/
 ```
 
 ## Why this slice exists

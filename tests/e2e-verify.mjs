@@ -3,7 +3,7 @@
 // Drives the real app in Chromium with a fake microphone and scripted GPS,
 // then asserts against what actually landed in IndexedDB.
 //
-//   node e2e-verify.mjs http://localhost:8123
+//   node e2e-verify.mjs http://localhost:8123/location/
 //
 // Exit 0 = every check passed.
 
@@ -41,7 +41,7 @@ let chromium;
   chromium = loaded.chromium;
 }
 
-const BASE = process.argv[2] || 'http://localhost:8123';
+const BASE = process.argv[2] || 'http://localhost:8123/location/';
 const results = [];
 let currentScenario = '';
 
