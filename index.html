@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2618">
   <link rel="manifest" href="./manifest.webmanifest">
-  <title>GardenOS Voice</title>
+  <title>GardenOS Location v0.4.0</title>
   <style>
     :root{
       --bg:#eef2ec;
@@ -29,7 +29,7 @@
     .logo{width:44px;height:44px;border-radius:15px;background:var(--green-dark);color:white;display:grid;place-items:center;font-size:23px}
     h1{font-size:20px;margin:0}
     header p{margin:3px 0 0;color:var(--muted);font-size:13px}
-    .install{border:1px solid var(--line);background:white;border-radius:12px;padding:9px 12px;font-weight:700;display:none}
+    .install{border:1px solid var(--line);background:white;border-radius:12px;padding:9px 12px;font-weight:700;display:none}.version-badge{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border-radius:999px;background:#e8f2eb;color:var(--green);font-size:12px;font-weight:900;border:1px solid #cfe0d3;white-space:nowrap}
     .hero{background:linear-gradient(180deg,#173622,#102719);color:white;border-radius:28px;padding:28px 20px 24px;box-shadow:var(--shadow);text-align:center}
     .eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:800;font-size:11px;opacity:.7}
     .hero h2{font-size:26px;margin:8px 0 6px}
@@ -76,9 +76,9 @@
     <header>
       <div class="brand">
         <div class="logo">🌿</div>
-        <div><h1>GardenOS Voice</h1><p>Capture now. Understand later.</p></div>
+        <div><h1>GardenOS Location</h1><p>Voice notes with real GPS only.</p></div>
       </div>
-      <button id="installBtn" class="install">Install</button>
+      <div style="display:flex;align-items:center;gap:8px"><span class="version-badge" id="versionBadge">v: 0.4.0</span><button id="installBtn" class="install">Install</button></div>
     </header>
 
     <section class="hero" id="hero">
@@ -93,7 +93,7 @@
 
       <div class="status" id="status">Ready to record</div>
       <div class="substatus" id="substatus">Microphone and location permissions will be requested.</div>
-      <a class="coords disabled" id="coords" href="#" target="_blank" rel="noopener"><span class="coords-label">Current coordinates</span><span class="coords-value">Location not captured yet</span><span class="coords-meta"><span id="accuracyText">Waiting for GPS</span><span id="qualityText" class="quality">—</span></span></a><button id="demoBtn" class="btn secondary" style="margin-top:14px">Run preview demo</button>
+      <a class="coords disabled" id="coords" href="#" target="_blank" rel="noopener"><span class="coords-label">Current coordinates</span><span class="coords-value">Location not captured yet</span><span class="coords-meta"><span id="accuracyText">Waiting for GPS</span><span id="qualityText" class="quality">—</span></span></a>
     </section>
 
     <div class="notice" id="environmentNotice">Checking browser capabilities…</div>
@@ -107,6 +107,7 @@
   </main>
 
   <script>
+    const APP_VERSION = "0.4.0";
     const DB_NAME = "gardenos-voice";
     const STORE = "recordings";
     let db;
@@ -124,8 +125,9 @@
     const listEl = document.getElementById("recordingList");
     const countEl = document.getElementById("count");
     const installBtn = document.getElementById("installBtn");
-    const demoBtn = document.getElementById("demoBtn");
     const environmentNotice = document.getElementById("environmentNotice");
+    const versionBadge = document.getElementById("versionBadge");
+    if(versionBadge) versionBadge.textContent = `v: ${APP_VERSION}`;
 
     function setStatus(title, detail=""){
       statusEl.textContent = title;
@@ -334,28 +336,8 @@
       else startRecording();
     });
 
-    demoBtn.addEventListener("click", async ()=>{
-      setStatus("Preview demo","Creating a simulated recording with sample GPS metadata.");
-      const sample = new Blob([new Uint8Array([82,73,70,70,36,0,0,0,87,65,86,69,102,109,116,32,16,0,0,0,1,0,1,0,68,172,0,0,136,88,1,0,2,0,16,0,100,97,116,97,0,0,0,0])], {type:"audio/wav"});
-      await putRecording({
-        id:crypto.randomUUID(),
-        createdAt:new Date().toISOString(),
-        durationMs:3000,
-        audioBlob:sample,
-        mimeType:"audio/wav",
-        latitude:36.3990,
-        longitude:-92.9099,
-        accuracyMeters:8,
-        locationStatus:"captured",
-        note:"Preview demo"
-      });
-      renderCurrentLocation({status:"captured",latitude:36.3990,longitude:-92.9099,accuracyMeters:8,capturedAt:new Date().toISOString()});
-      setStatus("Demo saved","The interface works here. Real recording requires HTTPS or localhost.");
-      await renderList();
-    });
-
     async function renderList(){
-      const records = await getRecordings();
+      const records = (await getRecordings()).filter(record => record.source !== "demo" && record.note !== "Preview demo");
       countEl.textContent = `${records.length} saved`;
 
       if(!records.length){
@@ -424,6 +406,17 @@
       installBtn.style.display = "none";
     });
 
+
+    async function purgeLegacyDemoRecords(){
+      const records = await getRecordings();
+      const demoRecords = records.filter(record =>
+        record.source === "demo" || record.note === "Preview demo"
+      );
+      for(const record of demoRecords){
+        await deleteRecording(record.id);
+      }
+    }
+
     async function init(){
       const secure = window.isSecureContext;
       const embedded = window.self !== window.top;
@@ -433,16 +426,17 @@
 
       environmentNotice.innerHTML = secure && hasMedia && hasGeo && hasRecorder
         ? "<strong>Real device mode available.</strong> Microphone and GPS APIs are accessible."
-        : "<strong>Preview mode.</strong> This embedded viewer blocks one or more required permissions. Use “Run preview demo” here, or open the app through HTTPS/localhost for real microphone and GPS capture.";
+        : "<strong>Secure browser required.</strong> Open this app through HTTPS or localhost for real microphone and GPS capture.";
 
       try{
         db = await openDb();
+        await purgeLegacyDemoRecords();
         await renderList();
       }catch(error){
         console.error(error);
         environmentNotice.innerHTML += "<br><strong>IndexedDB is blocked too.</strong> Open the downloaded app in a normal browser.";
         setStatus("Storage unavailable","This preview could not open IndexedDB.");
-        demoBtn.disabled = true;
+        
       }
 
       if("serviceWorker" in navigator && secure && !embedded){
