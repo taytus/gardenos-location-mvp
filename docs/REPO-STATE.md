@@ -61,11 +61,11 @@ repository and the live site. They are recorded here as evidence, not
 as a checklist for the next reader.
 
 ```bash
-git -C /Users/taytus/Projects/gardenos-location-mvp log --oneline --decorate -10
-git -C /Users/taytus/Projects/gardenos-location-mvp show --stat 1a41e60
-git -C /Users/taytus/Projects/gardenos-location-mvp show --stat 8471a6c
-git -C /Users/taytus/Projects/gardenos-location-mvp tag --list
-git -C /Users/taytus/Projects/gardenos-location-mvp show v0.4.0 --no-patch
+git log --oneline --decorate -10
+git show --stat 1a41e60
+git show --stat 8471a6c
+git tag --list
+git show v0.4.0 --no-patch
 ```
 
 The presence of `sw.js` and `manifest.webmanifest` on `main` and
