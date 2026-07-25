@@ -54,10 +54,17 @@ else
     fail "sw.js returned HTTP ${SW_CODE:-NO_RESPONSE}"
 fi
 
-if grep -qE "gardenos[^A-Za-z]*v${EXPECTED_VERSION//./\\.}|cache[^A-Za-z]*${EXPECTED_VERSION}" "$SW"; then
-    pass "sw.js cache name contains version $EXPECTED_VERSION"
+# Assert the exact cache constant, not a loose pattern. A stale cache name is the
+# one defect that permanently traps a phone on an old release, so this check has to
+# name what it expects. The previous pattern used [^A-Za-z]* between "gardenos" and
+# the version, which could never cross the letters in "gardenos-app-v...", so it
+# failed on every possible input.
+SW_CACHE_EXPECTED="gardenos-app-v${EXPECTED_VERSION}"
+SW_CACHE_ACTUAL="$(grep -oE '"gardenos-[A-Za-z]+-v[0-9]+\.[0-9]+\.[0-9]+"' "$SW" | head -1 | tr -d '"')"
+if [ "$SW_CACHE_ACTUAL" = "$SW_CACHE_EXPECTED" ]; then
+    pass "sw.js cache name is $SW_CACHE_EXPECTED"
 else
-    fail "sw.js cache name does not contain version $EXPECTED_VERSION"
+    fail "sw.js cache name is '${SW_CACHE_ACTUAL:-NONE FOUND}', expected '$SW_CACHE_EXPECTED'"
 fi
 
 # 3. Root manifest.webmanifest: returns 200 and parses as JSON.
