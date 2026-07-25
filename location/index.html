@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2618">
+  <link rel="manifest" href="./manifest.webmanifest?v=0.4.1">
+  <title>GardenOS Location</title>
+  <style>
+    :root{
+      --bg:#eef2ec;
+      --panel:#fff;
+      --ink:#172019;
+      --muted:#6c776f;
+      --line:#dce4dc;
+      --green:#1f6a3d;
+      --green-dark:#0f2618;
+      --red:#b33a3a;
+      --shadow:0 18px 45px rgba(20,45,29,.10);
+      --radius:22px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+    button,input{font:inherit}
+    .app{max-width:720px;margin:0 auto;min-height:100vh;padding:18px 16px 40px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:18px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:44px;height:44px;border-radius:15px;background:var(--green-dark);color:white;display:grid;place-items:center;font-size:23px}
+    h1{font-size:20px;margin:0}
+    header p{margin:3px 0 0;color:var(--muted);font-size:13px}
+    .install{border:1px solid var(--line);background:white;border-radius:12px;padding:9px 12px;font-weight:700;display:none}.version-badge{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border-radius:999px;background:#e8f2eb;color:var(--green);font-size:12px;font-weight:900;border:1px solid #cfe0d3;white-space:nowrap}
+    .hero{background:linear-gradient(180deg,#173622,#102719);color:white;border-radius:28px;padding:28px 20px 24px;box-shadow:var(--shadow);text-align:center}
+    .eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:800;font-size:11px;opacity:.7}
+    .hero h2{font-size:26px;margin:8px 0 6px}
+    .hero p{margin:0 auto;color:#d9e3dc;max-width:460px;line-height:1.5}
+    .record-wrap{margin:28px auto 18px;position:relative;width:150px;height:150px;display:grid;place-items:center}
+    .pulse{position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,.10);transform:scale(.82)}
+    .recording .pulse{animation:pulse 1.5s infinite}
+    @keyframes pulse{0%{transform:scale(.82);opacity:.7}70%{transform:scale(1.12);opacity:0}100%{transform:scale(.82);opacity:0}}
+    .record-btn{position:relative;width:116px;height:116px;border-radius:50%;border:8px solid rgba(255,255,255,.18);background:white;color:var(--green-dark);font-size:42px;box-shadow:0 16px 30px rgba(0,0,0,.25)}
+    .recording .record-btn{background:#df4c4c;color:white}
+    .status{font-weight:800;font-size:16px}
+    .substatus{margin-top:5px;font-size:13px;color:#cbd8cf;min-height:20px}
+    .coords{margin-top:16px;padding:18px;border-radius:18px;background:rgba(255,255,255,.10);color:#fff;line-height:1.2;text-decoration:none;display:block;border:1px solid rgba(255,255,255,.16)}
+    .coords.disabled{pointer-events:none;opacity:.8}
+    .coords-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#bfd0c4;font-weight:800;margin-bottom:8px}
+    .coords-value{display:block;font-size:clamp(24px,8vw,42px);font-weight:900;letter-spacing:-.04em;overflow-wrap:anywhere}
+    .coords-meta{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-size:12px;color:#dce7df}
+    .coords-time{display:block;margin-top:10px;font-size:12px;color:#dce7df}
+    .coords-hint{display:block;margin-top:10px;font-size:12px;font-weight:800;color:#bdf4c7}
+    .coords.disabled .coords-hint{display:none}
+    .quality{font-weight:900}
+    .quality.excellent{color:#bdf4c7}.quality.good{color:#ffe39a}.quality.poor{color:#ffb0a8}
+    .location-card{display:block;text-decoration:none;color:inherit;margin-top:12px;padding:16px;border-radius:16px;background:#f5f8f4;border:1px solid var(--line)}
+    .location-card.disabled{pointer-events:none;background:#f5f8f4}
+    .location-card .coord-big{font-size:clamp(22px,7vw,34px);font-weight:900;letter-spacing:-.04em;overflow-wrap:anywhere}
+    .location-card .map-hint{margin-top:8px;color:var(--green);font-size:12px;font-weight:800}
+    .location-card .altitude-row{margin-top:6px;color:var(--muted);font-size:12px}
+    .section-head{display:flex;justify-content:space-between;align-items:end;margin:24px 2px 12px}
+    .section-head h3{margin:0;font-size:18px}
+    .section-head span{color:var(--muted);font-size:12px}
+    .list{display:grid;gap:12px}
+    .card{background:white;border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:0 10px 26px rgba(28,48,34,.06)}
+    .card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+    .title{font-weight:850;font-size:15px}
+    .meta{color:var(--muted);font-size:12px;line-height:1.5;margin-top:4px}
+    .pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;background:#e8f2eb;color:var(--green);font-weight:800;font-size:11px;white-space:nowrap}
+    .actions{display:flex;gap:8px;margin-top:14px}
+    .btn{border:0;border-radius:12px;padding:10px 13px;font-weight:800;background:var(--green);color:white}
+    .btn.secondary{background:#f4f7f3;color:var(--ink);border:1px solid var(--line)}
+    .btn.danger{background:#fff1f1;color:var(--red);border:1px solid #efd1d1;margin-left:auto}
+    .empty{padding:28px 16px;text-align:center;color:var(--muted);background:white;border:1px dashed var(--line);border-radius:var(--radius)}
+    .notice{margin-top:14px;padding:12px 13px;border-radius:14px;background:#fff7df;border:1px solid #eedca8;color:#6e5922;font-size:12px;line-height:1.5}
+    audio{width:100%;margin-top:12px}
+    @media(min-width:700px){.app{padding-top:28px}.hero{padding:36px 30px 30px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">🌿</div>
+        <div><h1>GardenOS Location</h1><p>Voice notes with real GPS only.</p></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="version-badge" id="versionBadge">v: 0.4.1</span><button id="installBtn" class="install">Install</button></div>
+    </header>
+
+    <section class="hero" id="hero">
+      <div class="eyebrow">Voice-first garden memory</div>
+      <h2>What are you noticing?</h2>
+      <p>Tap once, speak naturally, and GardenOS will save the recording with the location where it happened.</p>
+
+      <div class="record-wrap" id="recordWrap">
+        <div class="pulse"></div>
+        <button class="record-btn" id="recordBtn" aria-label="Start recording">🎙️</button>
+      </div>
+
+      <div class="status" id="status">Ready to record</div>
+      <div class="substatus" id="substatus">Microphone and location permissions will be requested.</div>
+      <a class="coords disabled" id="coords" href="#" target="_blank" rel="noopener"><span class="coords-label">Current location</span><span class="coords-value" id="coordsValue">Location not captured yet</span><span class="coords-meta"><span id="accuracyText">Waiting for GPS</span><span id="qualityText" class="quality">—</span></span><span class="coords-time" id="coordsTime" hidden></span><span class="coords-hint" id="coordsHint">Tap to open in Google Maps ↗</span></a>
+    </section>
+
+    <div class="notice" id="environmentNotice">Checking browser capabilities…</div>
+
+    <div class="section-head">
+      <div><h3>Recordings</h3><span id="count">0 saved</span></div>
+      <span>Newest first</span>
+    </div>
+
+    <section class="list" id="recordingList"></section>
+  </main>
+
+  <script>
+    const APP_VERSION = "0.4.1";
+    const DB_NAME = "gardenos-voice";
+    const STORE = "recordings";
+    let db;
+    let recorder;
+    let chunks = [];
+    let startedAt = null;
+    let lastLocation = null;
+    let deferredInstallPrompt = null;
+
+    const recordBtn = document.getElementById("recordBtn");
+    const recordWrap = document.getElementById("recordWrap");
+    const statusEl = document.getElementById("status");
+    const substatusEl = document.getElementById("substatus");
+    const coordsEl = document.getElementById("coords");
+    const listEl = document.getElementById("recordingList");
+    const countEl = document.getElementById("count");
+    const installBtn = document.getElementById("installBtn");
+    const environmentNotice = document.getElementById("environmentNotice");
+    const versionBadge = document.getElementById("versionBadge");
+    if(versionBadge) versionBadge.textContent = `v: ${APP_VERSION}`;
+    document.title = `GardenOS Location v${APP_VERSION}`;
+
+    function setStatus(title, detail=""){
+      statusEl.textContent = title;
+      substatusEl.textContent = detail;
+    }
+
+    function openDb(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(DB_NAME,1);
+        req.onupgradeneeded = e => {
+          const database = e.target.result;
+          if(!database.objectStoreNames.contains(STORE)){
+            database.createObjectStore(STORE,{keyPath:"id"});
+          }
+        };
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function putRecording(recording){
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(STORE,"readwrite");
+        tx.objectStore(STORE).put(recording);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function getRecordings(){
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(STORE,"readonly");
+        const req = tx.objectStore(STORE).getAll();
+        req.onsuccess = () => {
+          const rows = req.result || [];
+          rows.sort((a,b) => {
+            const at = a?.createdAt || "";
+            const bt = b?.createdAt || "";
+            return bt.localeCompare(at);
+          });
+          resolve(rows);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function randomId(){
+      try{
+        if(typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"){
+          return crypto.randomUUID();
+        }
+      }catch(_){}
+      // RFC4122-ish fallback for older mobile browsers.
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
+    function deleteRecording(id){
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(STORE,"readwrite");
+        tx.objectStore(STORE).delete(id);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function locationQuality(accuracy){
+      if(accuracy <= 15) return {label:"Excellent",className:"excellent"};
+      if(accuracy <= 50) return {label:"Good",className:"good"};
+      return {label:"Poor",className:"poor"};
+    }
+
+    function mapsUrl(latitude, longitude){
+      return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    }
+
+    function formatCapturedAt(iso){
+      if(!iso) return "";
+      const d = new Date(iso);
+      if(Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString();
+    }
+
+    function renderCurrentLocation(location){
+      const valueEl = document.getElementById("coordsValue");
+      const accuracyEl = document.getElementById("accuracyText");
+      const qualityEl = document.getElementById("qualityText");
+      const timeEl = document.getElementById("coordsTime");
+      if(location.status !== "captured"){
+        coordsEl.classList.add("disabled");
+        coordsEl.removeAttribute("href");
+        valueEl.textContent = location.status === "denied"
+          ? "Location denied"
+          : "Location unavailable";
+        accuracyEl.textContent = location.status === "denied"
+          ? "Permission required for GPS"
+          : "No usable GPS fix";
+        qualityEl.textContent = "—";
+        qualityEl.className = "quality";
+        if(timeEl){ timeEl.hidden = true; timeEl.textContent = ""; }
+        return;
+      }
+      const quality = locationQuality(location.accuracyMeters);
+      coordsEl.classList.remove("disabled");
+      coordsEl.href = mapsUrl(location.latitude, location.longitude);
+      valueEl.textContent = `${location.latitude.toFixed(7)}, ${location.longitude.toFixed(7)}`;
+      accuracyEl.textContent = `Accuracy ±${Math.round(location.accuracyMeters)} m`;
+      qualityEl.textContent = quality.label;
+      qualityEl.className = `quality ${quality.className}`;
+      if(timeEl){
+        let text = `Captured ${formatCapturedAt(location.capturedAt)}`;
+        if(location.altitude != null && Number.isFinite(location.altitude)){
+          text += ` · Altitude ${Math.round(location.altitude)} m`;
+        }
+        timeEl.textContent = text;
+        timeEl.hidden = false;
+      }
+    }
+
+    function renderAcquiring(best, msRemaining){
+      const seconds = Math.max(0, Math.ceil(msRemaining / 1000));
+      if(best && best.accuracyMeters != null){
+        substatusEl.textContent = `Acquiring GPS… best ±${Math.round(best.accuracyMeters)} m (${seconds} s left)`;
+      } else {
+        substatusEl.textContent = `Acquiring GPS… (${seconds} s left)`;
+      }
+      if(best){
+        renderCurrentLocation(best);
+      }
+    }
+
+    async function copyTextToClipboard(text){
+      if(navigator.clipboard && window.isSecureContext){
+        try{
+          await navigator.clipboard.writeText(text);
+          return true;
+        }catch(_){}
+      }
+      try{
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly","");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand && document.execCommand("copy");
+        document.body.removeChild(ta);
+        return !!ok;
+      }catch(_){
+        return false;
+      }
+    }
+
+    function acquireLocation({onProgress} = {}){
+      const WINDOW_MS = 20000;
+      const EARLY_STOP_M = 15;
+      const empty = {status:"unavailable",latitude:null,longitude:null,accuracyMeters:null,altitude:null,capturedAt:null};
+      return new Promise(resolve=>{
+        if(!navigator.geolocation){
+          resolve({status:"unavailable",latitude:null,longitude:null,accuracyMeters:null,altitude:null,capturedAt:null});
+          return;
+        }
+
+        let best = null;
+        let settled = false;
+        let watchId = null;
+        let timeoutId = null;
+        const startedAt = Date.now();
+
+        const finish = result => {
+          if(settled) return;
+          settled = true;
+          if(watchId !== null){
+            try{ navigator.geolocation.clearWatch(watchId); }catch(_){}
+            watchId = null;
+          }
+          if(timeoutId !== null){
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          resolve(result);
+        };
+
+        const reportProgress = () => {
+          if(typeof onProgress === "function"){
+            const remaining = Math.max(0, WINDOW_MS - (Date.now() - startedAt));
+            onProgress(best, remaining);
+          }
+        };
+
+        watchId = navigator.geolocation.watchPosition(
+          pos => {
+            const candidate = {
+              status:"captured",
+              latitude:pos.coords.latitude,
+              longitude:pos.coords.longitude,
+              accuracyMeters:pos.coords.accuracy,
+              altitude: pos.coords.altitude == null ? null : pos.coords.altitude,
+              capturedAt: new Date(pos.timestamp).toISOString()
+            };
+            if(!best || candidate.accuracyMeters < best.accuracyMeters) best = candidate;
+            reportProgress();
+            if(candidate.accuracyMeters <= EARLY_STOP_M){
+              finish(candidate);
+            }
+          },
+          err => {
+            // PERMISSION_DENIED is fatal: the user said no, stop trying.
+            if(err && err.code === 1){
+              finish({
+                status:"denied",
+                latitude:null,
+                longitude:null,
+                accuracyMeters:null,
+                altitude:null,
+                capturedAt:new Date().toISOString()
+              });
+              return;
+            }
+            // Transient (POSITION_UNAVAILABLE / TIMEOUT): keep watching.
+            reportProgress();
+          },
+          {enableHighAccuracy:true, maximumAge:0, timeout:20000}
+        );
+
+        timeoutId = setTimeout(()=>{
+          finish(best || empty);
+        }, WINDOW_MS);
+      });
+    }
+
+    function supportedMimeType(){
+      const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4"];
+      return types.find(t=>window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+    }
+
+    async function startRecording(){
+      if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){
+        setStatus("Recording unavailable","This browser does not support the required audio APIs.");
+        return;
+      }
+
+      let stream;
+      try{
+        setStatus("Getting ready","Requesting microphone access.");
+        stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      }catch(error){
+        console.error(error);
+        setStatus("Permission blocked","Allow microphone access in your browser settings and try again.");
+        return;
+      }
+
+      // Start GPS acquisition CONCURRENTLY — do not await it. Recording begins
+      // immediately; GPS sharpens in the background and is awaited on stop.
+      let locationPromise = acquireLocation({onProgress: renderAcquiring});
+
+      const mimeType = supportedMimeType();
+      recorder = mimeType ? new MediaRecorder(stream,{mimeType}) : new MediaRecorder(stream);
+      chunks = [];
+      startedAt = Date.now();
+      const recordingCreatedAt = new Date().toISOString();
+
+      recorder.ondataavailable = e => {
+        if(e.data && e.data.size>0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const durationMs = Date.now() - startedAt;
+        const blob = new Blob(chunks,{type:recorder.mimeType || mimeType || "audio/webm"});
+        stream.getTracks().forEach(track=>track.stop());
+
+        setStatus("Saving recording","Finalizing GPS and storing audio on this device.");
+        const location = await locationPromise;
+        lastLocation = location;
+        renderCurrentLocation(location);
+
+        const record = {
+          id: randomId(),
+          createdAt: recordingCreatedAt,
+          durationMs,
+          audioBlob: blob,
+          mimeType: blob.type,
+          latitude: location?.latitude ?? null,
+          longitude: location?.longitude ?? null,
+          accuracyMeters: location?.accuracyMeters ?? null,
+          altitude: location?.altitude ?? null,
+          locationCapturedAt: location?.capturedAt ?? null,
+          locationStatus: location?.status ?? "unavailable",
+          source: "gps",
+          note: null
+        };
+
+        try{
+          await putRecording(record);
+          setStatus("Saved","Tap the microphone when you want to capture another observation.");
+        }catch(error){
+          console.error(error);
+          setStatus("Save failed","Could not store this recording. Check IndexedDB permissions.");
+        }
+        recordWrap.classList.remove("recording");
+        recordBtn.textContent="🎙️";
+        recordBtn.setAttribute("aria-label","Start recording");
+        await renderList();
+      };
+
+      try{
+        recorder.start();
+      }catch(error){
+        console.error(error);
+        stream.getTracks().forEach(track=>track.stop());
+        setStatus("Recording unavailable","Could not start the audio recorder.");
+        return;
+      }
+      recordWrap.classList.add("recording");
+      recordBtn.textContent="■";
+      recordBtn.setAttribute("aria-label","Stop recording");
+      setStatus("Recording","Speak naturally. Tap again to stop and save.");
+    }
+
+    function stopRecording(){
+      if(recorder && recorder.state==="recording"){
+        setStatus("Finishing","Preparing your recording.");
+        recorder.stop();
+      }
+    }
+
+    recordBtn.addEventListener("click",()=>{
+      if(recorder && recorder.state==="recording") stopRecording();
+      else startRecording();
+    });
+
+    async function renderList(){
+      // Revoke any blob URLs currently rendered so we never leak them across re-renders.
+      const liveAudios = listEl.querySelectorAll("audio");
+      for(const a of liveAudios){
+        const src = a.getAttribute("src") || "";
+        if(src.startsWith("blob:")) URL.revokeObjectURL(src);
+      }
+
+      const records = (await getRecordings()).filter(record =>
+        record.source !== "demo" &&
+        record.note !== "Preview demo" &&
+        record.isDemo !== true &&
+        record.demo !== true
+      );
+      countEl.textContent = `${records.length} saved`;
+
+      if(!records.length){
+        listEl.innerHTML = `<div class="empty">Your first recording will appear here with its timestamp and GPS status.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      for(const record of records){
+        const card = document.createElement("article");
+        card.className = "card";
+        const url = URL.createObjectURL(record.audioBlob);
+        const date = new Date(record.createdAt);
+        const seconds = Math.max(1,Math.round(record.durationMs/1000));
+        const captured = record.locationStatus === "captured" && record.latitude != null && record.longitude != null;
+        const quality = captured ? locationQuality(record.accuracyMeters) : null;
+
+        let locationCard;
+        if(captured){
+          const lat = Number(record.latitude).toFixed(7);
+          const lon = Number(record.longitude).toFixed(7);
+          const acc = Math.round(record.accuracyMeters);
+          const time = formatCapturedAt(record.locationCapturedAt || record.createdAt);
+          const altitudeRow = (record.altitude != null && Number.isFinite(record.altitude))
+            ? `<div class="altitude-row">Altitude ${Math.round(record.altitude)} m</div>`
+            : "";
+          locationCard = `
+            <a class="location-card" href="${mapsUrl(record.latitude, record.longitude)}" target="_blank" rel="noopener">
+              <div class="coord-big">${lat}, ${lon}</div>
+              <div class="meta">Accuracy ±${acc} m · ${quality.label}</div>
+              <div class="meta">Captured ${time}</div>
+              ${altitudeRow}
+              <div class="map-hint">Tap to open in Google Maps ↗</div>
+            </a>`;
+        } else {
+          const label = record.locationStatus === "denied" ? "Location denied" : "Location unavailable";
+          locationCard = `
+            <div class="location-card disabled" aria-disabled="true">
+              <div class="coord-big">${label}</div>
+              <div class="meta">No coordinates were saved with this note.</div>
+            </div>`;
+        }
+
+        const pill = captured ? `GPS ${quality.label}` : "No GPS";
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div>
+              <div class="title">${date.toLocaleString()}</div>
+              <div class="meta">${seconds} sec</div>
+            </div>
+            <span class="pill">${pill}</span>
+          </div>
+          ${locationCard}
+          <audio controls preload="metadata" src="${url}"></audio>
+          <div class="actions">
+            <button class="btn secondary copy-btn">Copy coordinates</button>
+            <button class="btn danger delete-btn">Delete</button>
+          </div>
+        `;
+
+        const copyBtn = card.querySelector(".copy-btn");
+        const deleteBtn = card.querySelector(".delete-btn");
+
+        copyBtn.addEventListener("click", async () => {
+          const original = copyBtn.dataset.label || copyBtn.textContent;
+          copyBtn.dataset.label = original;
+          if(!captured){
+            copyBtn.textContent = "No coordinates";
+            copyBtn.disabled = true;
+            setTimeout(() => {
+              copyBtn.textContent = original;
+              copyBtn.disabled = false;
+            }, 2000);
+            return;
+          }
+          const text = `${record.latitude}, ${record.longitude}`;
+          const ok = await copyTextToClipboard(text);
+          copyBtn.textContent = ok ? "Copied" : "Copy failed";
+          setTimeout(() => { copyBtn.textContent = original; }, 2000);
+        });
+
+        // Two-tap confirm: first tap arms the button, second tap deletes.
+        let deleteArmed = false;
+        let deleteTimer = null;
+        deleteBtn.addEventListener("click", async () => {
+          if(!deleteArmed){
+            deleteArmed = true;
+            deleteBtn.textContent = "Tap again to delete";
+            deleteTimer = setTimeout(() => {
+              deleteArmed = false;
+              deleteBtn.textContent = "Delete";
+              deleteTimer = null;
+            }, 4000);
+            return;
+          }
+          if(deleteTimer){ clearTimeout(deleteTimer); deleteTimer = null; }
+          URL.revokeObjectURL(url);
+          await deleteRecording(record.id);
+          await renderList();
+        });
+
+        listEl.appendChild(card);
+      }
+    }
+
+    window.addEventListener("beforeinstallprompt",event=>{
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      installBtn.style.display = "block";
+    });
+
+    installBtn.addEventListener("click",async()=>{
+      if(!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      installBtn.style.display = "none";
+    });
+
+
+    async function purgeLegacyDemoRecords(){
+      const records = await getRecordings();
+      const demoRecords = records.filter(record =>
+        record.source === "demo" ||
+        record.note === "Preview demo" ||
+        record.isDemo === true ||
+        record.demo === true
+      );
+      for(const record of demoRecords){
+        await deleteRecording(record.id);
+      }
+    }
+
+    async function init(){
+      const secure = window.isSecureContext;
+      const embedded = window.self !== window.top;
+      const hasMedia = !!navigator.mediaDevices?.getUserMedia;
+      const hasGeo = !!navigator.geolocation;
+      const hasRecorder = !!window.MediaRecorder;
+
+      environmentNotice.innerHTML = secure && hasMedia && hasGeo && hasRecorder
+        ? "<strong>Real device mode available.</strong> Microphone and GPS APIs are accessible."
+        : "<strong>Secure browser required.</strong> Open this app through HTTPS or localhost for real microphone and GPS capture.";
+
+      try{
+        db = await openDb();
+        await purgeLegacyDemoRecords();
+        await renderList();
+      }catch(error){
+        console.error(error);
+        environmentNotice.innerHTML += "<br><strong>IndexedDB is blocked.</strong> Recordings cannot be saved until storage is allowed. Check that the browser is not blocking site data, and that you are not in private browsing.";
+        setStatus("Storage unavailable","Recordings cannot be saved. Check that the browser is not blocking site data, and that you are not in private browsing.");
+      }
+
+      if("serviceWorker" in navigator && window.isSecureContext && window.self === window.top){
+        try{
+          const hadController = !!navigator.serviceWorker.controller;
+          await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`, { updateViaCache: "none" });
+          let reloaded = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if(!hadController) return;
+            if(reloaded) return;
+            reloaded = true;
+            location.reload();
+          });
+        }catch(error){ console.warn("Service worker registration failed", error); }
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -6,12 +6,19 @@ next maintainer, not for a one-shot session that is about to retire.
 ## Repository
 
 - GitHub: https://github.com/taytus/gardenos-location-mvp
-- GitHub Pages: https://taytus.github.io/gardenos-location-mvp/
+- GitHub Pages: https://taytus.github.io/gardenos-location-mvp/ (site root = merged GardenOS app)
+- Legacy voice recorder (the v0.4.1 experiment): https://taytus.github.io/gardenos-location-mvp/location/
 - Default branch: `main`
 - Deployment source: `main` branch, repository root
 - Current version: `0.4.1`
 - Current release commit: `19f0048` ("Release GardenOS Location v0.4.1")
 - Current release tag: `v0.4.1`
+
+## Layout (as of the nextsteps-0725-delta swap)
+
+- `/`            — merged GardenOS app (gardening + journal; voice/GPS capture lives here).
+- `/location/`   — the original v0.4.1 voice recorder experiment, kept reachable for
+  phones that installed it before the swap.
 
 ## Product objective
 

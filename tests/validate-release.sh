@@ -43,13 +43,15 @@ has_lit() { [[ "$1" == *"$2"* ]]; }
 # grep_re: returns 0 if regex matches in haystack (uses /usr/bin/grep)
 grep_re() { printf '%s' "$1" | /usr/bin/grep -Eq -- "$2"; }
 
-INDEX_CONTENT=$(safe_cat index.html)
-SW_CONTENT=$(safe_cat sw.js)
-MANIFEST_CONTENT=$(safe_cat manifest.webmanifest)
+# The voice recorder was the front door at v0.4.1 and now lives at
+# /location/. This gate still guards the SAME APP, at its new path.
+INDEX_CONTENT=$(safe_cat location/index.html)
+SW_CONTENT=$(safe_cat location/sw.js)
+MANIFEST_CONTENT=$(safe_cat location/manifest.webmanifest)
 RELEASE_CONTENT=$(safe_cat RELEASE-NOTES.md)
 
 # ---------- Check 1: Required files exist ----------
-CHECK_FILES=(index.html manifest.webmanifest sw.js VERSION RELEASE-NOTES.md README.md PRD-001.md PRD-002.md PRD-003.md)
+CHECK_FILES=(location/index.html location/manifest.webmanifest location/sw.js location/README.md VERSION RELEASE-NOTES.md README.md PRD-001.md PRD-002.md PRD-003.md)
 MISSING=()
 for f in "${CHECK_FILES[@]}"; do
     [ -f "$REPO_ROOT/$f" ] || MISSING+=("$f")
@@ -111,7 +113,7 @@ fi
 FORBIDDEN=("36.3990" "-92.9099" "Run preview demo")
 FORBID_HIT=""
 PROD_FILES=()
-for f in index.html sw.js manifest.webmanifest RELEASE-NOTES.md README.md PRD-001.md PRD-002.md PRD-003.md; do
+for f in location/index.html location/sw.js location/manifest.webmanifest RELEASE-NOTES.md README.md PRD-001.md PRD-002.md PRD-003.md; do
     [ -f "$REPO_ROOT/$f" ] && PROD_FILES+=("$f")
 done
 for f in "${PROD_FILES[@]}"; do
@@ -310,7 +312,7 @@ fi
 
 # ---------- Check 18: No absolute-root asset paths ----------
 ABS_HIT=""
-for f in index.html sw.js; do
+for f in location/index.html location/sw.js; do
     fc=$(safe_cat "$f")
     for bare in /index.html /sw.js /manifest.webmanifest; do
         # Reject any reference to the asset at an absolute root, regardless of

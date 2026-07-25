@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Verify the live GardenOS Location deployment matches the repo's VERSION file.
+# Verify the live GardenOS deployment matches the repo's VERSION file.
+# After the nextsteps-0725-delta layout swap the site root serves the merged
+# GardenOS app and the voice recorder (the previous root) lives at /location/.
 # Expects to be run from inside the repo (or anywhere with a sibling VERSION file).
 # Exits non-zero on any failure, prints which check failed.
 set -uo pipefail
 
 URL_BASE="https://taytus.github.io/gardenos-location-mvp"
+RECORDER_URL="${URL_BASE}/location/"
 EXPECTED_VERSION="$(tr -d '[:space:]' < VERSION)"
 FAIL=0
 TMP="$(mktemp -d)"
@@ -14,14 +17,14 @@ note(){ echo "  ..  $*"; }
 pass(){ echo "  PASS  $*"; }
 fail(){ echo "  FAIL  $*"; FAIL=1; }
 
-# 1. HTML page: version badge correct, no legacy demo UI, no fake coordinates.
+# 1. Root HTML: serves GardenOS, no legacy demo UI, no fake coordinates.
 HTML="$TMP/index.html"
 curl -fsSL "${URL_BASE}/?verify=$(date +%s)" -o "$HTML" || fail "fetch ${URL_BASE}/"
 
-if grep -qF "v: $EXPECTED_VERSION" "$HTML"; then
-    pass "badge shows v: $EXPECTED_VERSION"
+if grep -qF "GardenOS v0.1" "$HTML"; then
+    pass "root serves GardenOS (title 'GardenOS v0.1' present)"
 else
-    fail "badge missing 'v: $EXPECTED_VERSION'"
+    fail "root does not appear to serve GardenOS (expected 'GardenOS v0.1' title)"
 fi
 
 if grep -qF "Run preview demo" "$HTML"; then
@@ -42,7 +45,7 @@ else
     pass "no legacy fake longitude -92.9099"
 fi
 
-# 2. sw.js: returns 200 and its cache name embeds the version.
+# 2. Root sw.js: returns 200 and its cache name embeds the version.
 SW="$TMP/sw.js"
 SW_CODE="$(curl -fsS -o "$SW" -w '%{http_code}' "${URL_BASE}/sw.js" || true)"
 if [ "$SW_CODE" = "200" ]; then
@@ -51,13 +54,13 @@ else
     fail "sw.js returned HTTP ${SW_CODE:-NO_RESPONSE}"
 fi
 
-if grep -qE "gardenos-location-v${EXPECTED_VERSION//./\\.}|cache[^A-Za-z]*${EXPECTED_VERSION}" "$SW"; then
+if grep -qE "gardenos[^A-Za-z]*v${EXPECTED_VERSION//./\\.}|cache[^A-Za-z]*${EXPECTED_VERSION}" "$SW"; then
     pass "sw.js cache name contains version $EXPECTED_VERSION"
 else
     fail "sw.js cache name does not contain version $EXPECTED_VERSION"
 fi
 
-# 3. manifest.webmanifest: returns 200 and parses as JSON.
+# 3. Root manifest.webmanifest: returns 200 and parses as JSON.
 MANIFEST="$TMP/manifest.webmanifest"
 MANIFEST_CODE="$(curl -fsS -o "$MANIFEST" -w '%{http_code}' "${URL_BASE}/manifest.webmanifest" || true)"
 if [ "$MANIFEST_CODE" = "200" ]; then
@@ -72,7 +75,22 @@ else
     fail "manifest.webmanifest does not parse as JSON"
 fi
 
-# 4. plain http redirects to https.
+# 4. /location/ (the original voice recorder) still serves its v: $EXPECTED_VERSION
+# badge so phones that had the old root installed have something to land on.
+REC_HTML="$TMP/location.html"
+REC_CODE="$(curl -fsS -o "$REC_HTML" -w '%{http_code}' "${RECORDER_URL}?verify=$(date +%s)" || true)"
+if [ "$REC_CODE" = "200" ]; then
+    pass "/location/ returns 200"
+else
+    fail "/location/ returned HTTP ${REC_CODE:-NO_RESPONSE}"
+fi
+if [ "$REC_CODE" = "200" ] && grep -qF "v: $EXPECTED_VERSION" "$REC_HTML"; then
+    pass "/location/ still serves the v: $EXPECTED_VERSION badge"
+else
+    fail "/location/ is missing the v: $EXPECTED_VERSION badge"
+fi
+
+# 5. plain http redirects to https.
 REDIRECT_CODE="$(curl -fsS -o /dev/null -w '%{http_code}' "http://taytus.github.io/gardenos-location-mvp/" || true)"
 case "$REDIRECT_CODE" in
     301|302|307|308) pass "http -> https redirect returns ${REDIRECT_CODE}";;

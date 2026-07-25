@@ -40,9 +40,11 @@ running them; they are short and explicit.
 9. **Wait for GitHub Pages.** Pages re-deploys after the push. Give it a minute
    before verifying.
 10. **Verify the live site.** Run `bash scripts/verify-deployment.sh`. It
-    checks the live HTML for the version badge, the absence of the demo
-    string, the absence of fake coordinates, and the presence of the PWA
-    assets (`sw.js`, `manifest.webmanifest`).
+    checks that the site root serves the merged GardenOS app, that the
+    `/location/` voice recorder still carries the `v: X.Y.Z` badge, that
+    none of the demo strings or fake coordinates reappear, and that the
+    root `sw.js` and `manifest.webmanifest` are served with the versioned
+    cache name.
 
 ## Hard rules
 

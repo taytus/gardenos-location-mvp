@@ -1,63 +1,66 @@
-# GardenOS Location
+# GardenOS
 
-A mobile-first, single-user field tool. Speak, the app captures your voice and your GPS fix together, and saves both locally on your phone. Tap a coordinate to verify it on Google Maps.
+A local-first garden companion. Track garden sections, plantings, tasks, and
+an observation journal enriched with voice notes and GPS coordinates.
 
-Live app: **https://taytus.github.io/gardenos-location-mvp/**
+## Run it
 
-## How to use it in the field
-
-1. Open the live URL on the phone.
-2. Add it to the home screen so it launches like a regular app.
-3. Allow microphone and location when prompted.
-4. Tap the big button to start recording. Tap again to stop.
-5. The new note appears at the top of the list, with its coordinates and accuracy.
-6. Tap any coordinate card to open that exact point in Google Maps.
-
-## GPS behaviour
-
-- The app samples GPS for up to 20 seconds, then keeps the most accurate reading.
-- It stops early the moment it gets a fix of 15 meters or better.
-- Quality labels:
-  - **Excellent** at 15 meters or better.
-  - **Good** between 16 and 50 meters.
-  - **Poor** above 50 meters.
-- A transient GPS error does not abort the acquisition. Only `PERMISSION_DENIED` aborts it. Recording still starts immediately on tap; location is acquired in the background and saved when it arrives.
-- If location is denied or unavailable, the recording is still saved and labelled accordingly.
-
-## Local development
-
-No build, no dependencies, no `node_modules`. Serve the folder with any static server. The simplest one is the one Python already ships with:
+This is a static site. No build step, no install, no npm, no accounts.
 
 ```bash
+# from the repo root
 python3 -m http.server 8000
+# then open http://localhost:8000/
 ```
 
-Then open:
+Or just visit the live build:
 
-`http://localhost:8000`
+- https://taytus.github.io/gardenos-location-mvp/
 
-Microphone and geolocation are permitted on `localhost` in every modern browser.
+> **Why not `file://`?** Voice notes use `getUserMedia` (microphone) and
+> `Geolocation.watchPosition` (GPS). Both require a **secure context**, so
+> opening `index.html` straight from disk gives you a silent app with no mic
+> and no location. Always serve over `http://localhost`, `https://`, or any
+> other secure origin.
 
-## Requirements
+## What it does
 
-- HTTPS, or `http://localhost`. Browsers gate microphone and geolocation behind this.
-- Microphone permission for recording.
-- Location permission for GPS tagging.
+- Today dashboard with metrics, today's actions, and rule-based recommendations
+- Garden sections, grouped plantings, and a simple task list
+- Observation journal with title, date, section, tags, and notes
+- **Voice notes** captured from the microphone, recorded until you tap stop
+- **GPS** captured alongside each voice note, with accuracy and a Google Maps link
+- Settings for name, location, USDA zone, soil, sun exposure, and preferences
+- Settings → **Reset demo data** restores the sample dataset
+- Responsive desktop and mobile layouts, installable as a PWA
 
-## Storage
+On the Journal tab, tap `● Record` to capture a voice note. The browser will
+ask for microphone and location permission. GPS is collected for up to 20
+seconds during the recording (the best reading wins). The audio and coordinates
+are saved against the journal entry.
 
-- All recordings live in IndexedDB in this browser on this device.
-- Clearing site data deletes them.
-- There is no sync, no cloud backup, and no export.
+## Data
 
-## Browser support and real limitations
+Two browser stores, used for different things:
 
-- iOS Safari reports altitude as `null` on most devices.
-- GPS accuracy indoors is frequently worse than 50 meters. Expect `Poor` quality or no fix at all.
-- `MediaRecorder` produces `audio/mp4` on iOS Safari and `audio/webm` on Chrome and most Chromium-based browsers.
+- `localStorage` key **`gardenos-v01`** — all app state (profile, sections,
+  plantings, tasks, journal entries). Plain JSON.
+- **IndexedDB** database **`gardenos-audio`**, object store `recordings` —
+  audio Blobs. Blobs cannot live in `localStorage`, so each journal entry
+  stores only an `audioId` reference; the actual audio sits in IndexedDB.
 
-## Versioning
+Settings → Reset demo data wipes both stores and reloads the sample data.
 
-- The `v: X.Y.Z` badge in the header is rendered from the `APP_VERSION` constant in `index.html`.
-- The same string is mirrored in the `VERSION` file in the repository root.
-- A matching `vX.Y.Z` git tag marks each release.
+## Files
+
+- `index.html` — the app
+- `voice-gps.js` — voice + GPS capture engine, audio storage
+- `sw.js` — service worker (offline cache for the app shell)
+- `manifest.webmanifest` — PWA manifest
+
+## Voice recorder (legacy)
+
+The original GPS-tagged voice recorder experiment lives at
+**https://taytus.github.io/gardenos-location-mvp/location/**. Its capability
+has been merged into the GardenOS journal above, but the experiment itself
+remains reachable. See `location/README.md`.
