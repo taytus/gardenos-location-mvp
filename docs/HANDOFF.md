@@ -96,7 +96,7 @@ Each real recording stores the following fields in IndexedDB:
 - `longitude`
 - `accuracyMeters`
 - `altitude` (when available)
-- `locationTimestamp`
+- `locationCapturedAt`
 - `locationStatus`
 - `source: "gps"`
 - optional note metadata
