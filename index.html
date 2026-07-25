@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2618">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <title>GardenOS Voice</title>
+  <style>
+    :root{
+      --bg:#eef2ec;
+      --panel:#fff;
+      --ink:#172019;
+      --muted:#6c776f;
+      --line:#dce4dc;
+      --green:#1f6a3d;
+      --green-dark:#0f2618;
+      --red:#b33a3a;
+      --shadow:0 18px 45px rgba(20,45,29,.10);
+      --radius:22px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+    button,input{font:inherit}
+    .app{max-width:720px;margin:0 auto;min-height:100vh;padding:18px 16px 40px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:18px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:44px;height:44px;border-radius:15px;background:var(--green-dark);color:white;display:grid;place-items:center;font-size:23px}
+    h1{font-size:20px;margin:0}
+    header p{margin:3px 0 0;color:var(--muted);font-size:13px}
+    .install{border:1px solid var(--line);background:white;border-radius:12px;padding:9px 12px;font-weight:700;display:none}
+    .hero{background:linear-gradient(180deg,#173622,#102719);color:white;border-radius:28px;padding:28px 20px 24px;box-shadow:var(--shadow);text-align:center}
+    .eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:800;font-size:11px;opacity:.7}
+    .hero h2{font-size:26px;margin:8px 0 6px}
+    .hero p{margin:0 auto;color:#d9e3dc;max-width:460px;line-height:1.5}
+    .record-wrap{margin:28px auto 18px;position:relative;width:150px;height:150px;display:grid;place-items:center}
+    .pulse{position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,.10);transform:scale(.82)}
+    .recording .pulse{animation:pulse 1.5s infinite}
+    @keyframes pulse{0%{transform:scale(.82);opacity:.7}70%{transform:scale(1.12);opacity:0}100%{transform:scale(.82);opacity:0}}
+    .record-btn{position:relative;width:116px;height:116px;border-radius:50%;border:8px solid rgba(255,255,255,.18);background:white;color:var(--green-dark);font-size:42px;box-shadow:0 16px 30px rgba(0,0,0,.25)}
+    .recording .record-btn{background:#df4c4c;color:white}
+    .status{font-weight:800;font-size:16px}
+    .substatus{margin-top:5px;font-size:13px;color:#cbd8cf;min-height:20px}
+    .coords{margin-top:16px;padding:12px;border-radius:14px;background:rgba(255,255,255,.08);font-size:12px;color:#dce7df;line-height:1.5}
+    .section-head{display:flex;justify-content:space-between;align-items:end;margin:24px 2px 12px}
+    .section-head h3{margin:0;font-size:18px}
+    .section-head span{color:var(--muted);font-size:12px}
+    .list{display:grid;gap:12px}
+    .card{background:white;border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:0 10px 26px rgba(28,48,34,.06)}
+    .card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+    .title{font-weight:850;font-size:15px}
+    .meta{color:var(--muted);font-size:12px;line-height:1.5;margin-top:4px}
+    .pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;background:#e8f2eb;color:var(--green);font-weight:800;font-size:11px;white-space:nowrap}
+    .actions{display:flex;gap:8px;margin-top:14px}
+    .btn{border:0;border-radius:12px;padding:10px 13px;font-weight:800;background:var(--green);color:white}
+    .btn.secondary{background:#f4f7f3;color:var(--ink);border:1px solid var(--line)}
+    .btn.danger{background:#fff1f1;color:var(--red);border:1px solid #efd1d1;margin-left:auto}
+    .empty{padding:28px 16px;text-align:center;color:var(--muted);background:white;border:1px dashed var(--line);border-radius:var(--radius)}
+    .notice{margin-top:14px;padding:12px 13px;border-radius:14px;background:#fff7df;border:1px solid #eedca8;color:#6e5922;font-size:12px;line-height:1.5}
+    audio{width:100%;margin-top:12px}
+    @media(min-width:700px){.app{padding-top:28px}.hero{padding:36px 30px 30px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">🌿</div>
+        <div><h1>GardenOS Voice</h1><p>Capture now. Understand later.</p></div>
+      </div>
+      <button id="installBtn" class="install">Install</button>
+    </header>
+
+    <section class="hero" id="hero">
+      <div class="eyebrow">Voice-first garden memory</div>
+      <h2>What are you noticing?</h2>
+      <p>Tap once, speak naturally, and GardenOS will save the recording with the location where it happened.</p>
+
+      <div class="record-wrap" id="recordWrap">
+        <div class="pulse"></div>
+        <button class="record-btn" id="recordBtn" aria-label="Start recording">🎙️</button>
+      </div>
+
+      <div class="status" id="status">Ready to record</div>
+      <div class="substatus" id="substatus">Microphone and location permissions will be requested.</div>
+      <div class="coords" id="coords">Location not captured yet.</div><button id="demoBtn" class="btn secondary" style="margin-top:14px">Run preview demo</button>
+    </section>
+
+    <div class="notice" id="environmentNotice">Checking browser capabilities…</div>
+
+    <div class="section-head">
+      <div><h3>Recordings</h3><span id="count">0 saved</span></div>
+      <span>Newest first</span>
+    </div>
+
+    <section class="list" id="recordingList"></section>
+  </main>
+
+  <script>
+    const DB_NAME = "gardenos-voice";
+    const STORE = "recordings";
+    let db;
+    let recorder;
+    let chunks = [];
+    let startedAt = null;
+    let lastLocation = null;
+    let deferredInstallPrompt = null;
+
+    const recordBtn = document.getElementById("recordBtn");
+    const recordWrap = document.getElementById("recordWrap");
+    const statusEl = document.getElementById("status");
+    const substatusEl = document.getElementById("substatus");
+    const coordsEl = document.getElementById("coords");
+    const listEl = document.getElementById("recordingList");
+    const countEl = document.getElementById("count");
+    const installBtn = document.getElementById("installBtn");
+    const demoBtn = document.getElementById("demoBtn");
+    const environmentNotice = document.getElementById("environmentNotice");
+
+    function setStatus(title, detail=""){
+      statusEl.textContent = title;
+      substatusEl.textContent = detail;
+    }
+
+    function openDb(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(DB_NAME,1);
+        req.onupgradeneeded = e => {
+          const database = e.target.result;
+          if(!database.objectStoreNames.contains(STORE)){
+            database.createObjectStore(STORE,{keyPath:"id"});
+          }
+        };
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function putRecording(recording){
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(STORE,"readwrite");
+        tx.objectStore(STORE).put(recording);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function getRecordings(){
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(STORE,"readonly");
+        const req = tx.objectStore(STORE).getAll();
+        req.onsuccess = () => resolve(req.result.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function deleteRecording(id){
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(STORE,"readwrite");
+        tx.objectStore(STORE).delete(id);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function getLocation(){
+      return new Promise(resolve=>{
+        if(!navigator.geolocation){
+          resolve({status:"unavailable",latitude:null,longitude:null,accuracyMeters:null});
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          pos=>resolve({
+            status:"captured",
+            latitude:pos.coords.latitude,
+            longitude:pos.coords.longitude,
+            accuracyMeters:pos.coords.accuracy
+          }),
+          err=>resolve({
+            status:err.code===1 ? "denied" : "unavailable",
+            latitude:null,
+            longitude:null,
+            accuracyMeters:null
+          }),
+          {enableHighAccuracy:true,timeout:12000,maximumAge:15000}
+        );
+      });
+    }
+
+    function supportedMimeType(){
+      const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4"];
+      return types.find(t=>window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+    }
+
+    async function startRecording(){
+      if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){
+        setStatus("Recording unavailable","This browser does not support the required audio APIs.");
+        return;
+      }
+
+      try{
+        setStatus("Getting ready","Requesting microphone and GPS permissions.");
+        const [stream, location] = await Promise.all([
+          navigator.mediaDevices.getUserMedia({audio:true}),
+          getLocation()
+        ]);
+
+        lastLocation = location;
+        if(location.status==="captured"){
+          coordsEl.textContent = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)} · accuracy ±${Math.round(location.accuracyMeters)} m`;
+        }else{
+          coordsEl.textContent = `Location ${location.status}. The recording can still be saved.`;
+        }
+
+        const mimeType = supportedMimeType();
+        recorder = mimeType ? new MediaRecorder(stream,{mimeType}) : new MediaRecorder(stream);
+        chunks = [];
+        startedAt = Date.now();
+
+        recorder.ondataavailable = e => {
+          if(e.data && e.data.size>0) chunks.push(e.data);
+        };
+
+        recorder.onstop = async () => {
+          const durationMs = Date.now() - startedAt;
+          const blob = new Blob(chunks,{type:recorder.mimeType || mimeType || "audio/webm"});
+          stream.getTracks().forEach(track=>track.stop());
+
+          setStatus("Saving recording","Storing audio and GPS data on this device.");
+          const record = {
+            id:crypto.randomUUID(),
+            createdAt:new Date().toISOString(),
+            durationMs,
+            audioBlob:blob,
+            mimeType:blob.type,
+            latitude:lastLocation?.latitude ?? null,
+            longitude:lastLocation?.longitude ?? null,
+            accuracyMeters:lastLocation?.accuracyMeters ?? null,
+            locationStatus:lastLocation?.status ?? "unavailable",
+            note:null
+          };
+
+          await putRecording(record);
+          setStatus("Saved","Tap the microphone when you want to capture another observation.");
+          recordWrap.classList.remove("recording");
+          recordBtn.textContent="🎙️";
+          recordBtn.setAttribute("aria-label","Start recording");
+          await renderList();
+        };
+
+        recorder.start();
+        recordWrap.classList.add("recording");
+        recordBtn.textContent="■";
+        recordBtn.setAttribute("aria-label","Stop recording");
+        setStatus("Recording","Speak naturally. Tap again to stop and save.");
+      }catch(error){
+        console.error(error);
+        setStatus("Permission blocked","Allow microphone access in your browser settings and try again.");
+        recordWrap.classList.remove("recording");
+      }
+    }
+
+    function stopRecording(){
+      if(recorder && recorder.state==="recording"){
+        setStatus("Finishing","Preparing your recording.");
+        recorder.stop();
+      }
+    }
+
+    recordBtn.addEventListener("click",()=>{
+      if(recorder && recorder.state==="recording") stopRecording();
+      else startRecording();
+    });
+
+    demoBtn.addEventListener("click", async ()=>{
+      setStatus("Preview demo","Creating a simulated recording with sample GPS metadata.");
+      const sample = new Blob([new Uint8Array([82,73,70,70,36,0,0,0,87,65,86,69,102,109,116,32,16,0,0,0,1,0,1,0,68,172,0,0,136,88,1,0,2,0,16,0,100,97,116,97,0,0,0,0])], {type:"audio/wav"});
+      await putRecording({
+        id:crypto.randomUUID(),
+        createdAt:new Date().toISOString(),
+        durationMs:3000,
+        audioBlob:sample,
+        mimeType:"audio/wav",
+        latitude:36.3990,
+        longitude:-92.9099,
+        accuracyMeters:8,
+        locationStatus:"captured",
+        note:"Preview demo"
+      });
+      coordsEl.textContent = "36.399000, -92.909900 · accuracy ±8 m";
+      setStatus("Demo saved","The interface works here. Real recording requires HTTPS or localhost.");
+      await renderList();
+    });
+
+    async function renderList(){
+      const records = await getRecordings();
+      countEl.textContent = `${records.length} saved`;
+
+      if(!records.length){
+        listEl.innerHTML = `<div class="empty">Your first recording will appear here with its timestamp and GPS status.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      for(const record of records){
+        const card = document.createElement("article");
+        card.className = "card";
+        const url = URL.createObjectURL(record.audioBlob);
+        const date = new Date(record.createdAt);
+        const seconds = Math.max(1,Math.round(record.durationMs/1000));
+        const locationText = record.locationStatus==="captured"
+          ? `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)} · ±${Math.round(record.accuracyMeters)} m`
+          : `Location ${record.locationStatus}`;
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div>
+              <div class="title">${date.toLocaleString()}</div>
+              <div class="meta">${seconds} sec · ${locationText}</div>
+            </div>
+            <span class="pill">${record.locationStatus==="captured" ? "GPS saved" : "No GPS"}</span>
+          </div>
+          <audio controls preload="metadata" src="${url}"></audio>
+          <div class="actions">
+            <button class="btn secondary copy-btn">Copy coordinates</button>
+            <button class="btn danger delete-btn">Delete</button>
+          </div>
+        `;
+
+        card.querySelector(".copy-btn").addEventListener("click",async()=>{
+          if(record.locationStatus!=="captured"){
+            alert("This recording has no coordinates.");
+            return;
+          }
+          await navigator.clipboard.writeText(`${record.latitude}, ${record.longitude}`);
+        });
+
+        card.querySelector(".delete-btn").addEventListener("click",async()=>{
+          if(!confirm("Delete this recording?")) return;
+          URL.revokeObjectURL(url);
+          await deleteRecording(record.id);
+          await renderList();
+        });
+
+        listEl.appendChild(card);
+      }
+    }
+
+    window.addEventListener("beforeinstallprompt",event=>{
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      installBtn.style.display = "block";
+    });
+
+    installBtn.addEventListener("click",async()=>{
+      if(!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      installBtn.style.display = "none";
+    });
+
+    async function init(){
+      const secure = window.isSecureContext;
+      const embedded = window.self !== window.top;
+      const hasMedia = !!navigator.mediaDevices?.getUserMedia;
+      const hasGeo = !!navigator.geolocation;
+      const hasRecorder = !!window.MediaRecorder;
+
+      environmentNotice.innerHTML = secure && hasMedia && hasGeo && hasRecorder
+        ? "<strong>Real device mode available.</strong> Microphone and GPS APIs are accessible."
+        : "<strong>Preview mode.</strong> This embedded viewer blocks one or more required permissions. Use “Run preview demo” here, or open the app through HTTPS/localhost for real microphone and GPS capture.";
+
+      try{
+        db = await openDb();
+        await renderList();
+      }catch(error){
+        console.error(error);
+        environmentNotice.innerHTML += "<br><strong>IndexedDB is blocked too.</strong> Open the downloaded app in a normal browser.";
+        setStatus("Storage unavailable","This preview could not open IndexedDB.");
+        demoBtn.disabled = true;
+      }
+
+      if("serviceWorker" in navigator && secure && !embedded){
+        try{ await navigator.serviceWorker.register("./sw.js"); }catch(error){ console.warn(error); }
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
