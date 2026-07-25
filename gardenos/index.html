@@ -1248,7 +1248,8 @@
 
       const voiceSel = document.getElementById("voiceSection");
       if(voiceSel){
-        const target = voiceState.sectionId || lastJournalSectionId() || "";
+        const fallback = (state.sections && state.sections.length) ? state.sections[0].id : "";
+        const target = voiceState.sectionId || lastJournalSectionId() || fallback || "";
         voiceSel.value = target;
         voiceState.sectionId = voiceSel.value;
       }
@@ -1525,10 +1526,6 @@
       showView("dashboard");
     }
 
-    render();
-  </script>
-
-  <script>
     /* === Voice + GPS capture wiring (alpha slice) === */
 
     const voiceState = {
@@ -1558,6 +1555,15 @@
       for(let i = state.journal.length-1; i >= 0; i--){
         if(state.journal[i].sectionId) return state.journal[i].sectionId;
       }
+      return "";
+    }
+
+    function resolveVoiceSectionId(){
+      const sel = document.getElementById("voiceSection");
+      if(sel && sel.value) return sel.value;
+      const fromJournal = lastJournalSectionId();
+      if(fromJournal) return fromJournal;
+      if(state.sections && state.sections.length) return state.sections[0].id;
       return "";
     }
 
@@ -1631,8 +1637,7 @@
         const audioId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : ("aud-" + Date.now() + "-" + Math.random().toString(36).slice(2,10));
         await GardenVoice.saveAudio(audioId, result.audioBlob, result.mimeType || "audio/webm");
 
-        const sectionSel = document.getElementById("voiceSection");
-        const sectionId = sectionSel ? sectionSel.value : "";
+        const sectionId = resolveVoiceSectionId();
         const loc = (result.location) || (voiceState.gps) || {status: "unavailable"};
 
         const now = new Date();
@@ -1807,6 +1812,8 @@
           ${tagsHtml}
         </div>`;
     }
+
+    render();
   </script>
 </body>
 </html>
