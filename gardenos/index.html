@@ -1,0 +1,1351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#173222" />
+  <title>GardenOS v0.1</title>
+  <style>
+    :root{
+      --bg:#f4f6f0;
+      --panel:#ffffff;
+      --ink:#1f2a22;
+      --muted:#69736c;
+      --line:#dfe5dd;
+      --green:#2f6b45;
+      --green-dark:#173222;
+      --green-soft:#e5f0e7;
+      --amber:#f0b54b;
+      --danger:#b64c4c;
+      --shadow:0 12px 34px rgba(31,42,34,.08);
+      --radius:20px;
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+    }
+
+    button,input,select,textarea{font:inherit}
+    button{cursor:pointer}
+
+    .app{
+      min-height:100vh;
+      display:grid;
+      grid-template-columns:250px 1fr;
+    }
+
+    aside{
+      background:var(--green-dark);
+      color:white;
+      padding:24px 18px;
+      position:sticky;
+      top:0;
+      height:100vh;
+      overflow:auto;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:30px;
+    }
+
+    .logo{
+      width:44px;
+      height:44px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      background:#d9efbe;
+      color:var(--green-dark);
+      font-size:24px;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);
+    }
+
+    .brand h1{
+      margin:0;
+      font-size:18px;
+      line-height:1.1;
+    }
+
+    .brand small{
+      display:block;
+      margin-top:4px;
+      opacity:.68;
+      font-size:12px;
+    }
+
+    nav{
+      display:grid;
+      gap:7px;
+    }
+
+    .nav-btn{
+      width:100%;
+      border:0;
+      color:#dbe5dc;
+      background:transparent;
+      padding:12px 14px;
+      border-radius:13px;
+      text-align:left;
+      display:flex;
+      align-items:center;
+      gap:11px;
+      font-weight:650;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active{
+      background:rgba(255,255,255,.1);
+      color:white;
+    }
+
+    .sidebar-card{
+      margin-top:28px;
+      padding:16px;
+      border-radius:16px;
+      background:rgba(255,255,255,.08);
+      color:#dbe5dc;
+      font-size:13px;
+      line-height:1.5;
+    }
+
+    main{
+      padding:28px;
+      min-width:0;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:20px;
+      margin-bottom:24px;
+    }
+
+    .eyebrow{
+      margin:0 0 6px;
+      color:var(--green);
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      font-size:12px;
+    }
+
+    h2{
+      margin:0;
+      font-size:32px;
+      letter-spacing:-.03em;
+    }
+
+    .subtitle{
+      margin:8px 0 0;
+      color:var(--muted);
+    }
+
+    .top-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .btn{
+      border:0;
+      border-radius:13px;
+      padding:11px 15px;
+      font-weight:750;
+      background:var(--green);
+      color:white;
+      box-shadow:0 6px 18px rgba(47,107,69,.18);
+    }
+
+    .btn:hover{filter:brightness(.97)}
+    .btn.secondary{
+      background:white;
+      color:var(--ink);
+      border:1px solid var(--line);
+      box-shadow:none;
+    }
+
+    .btn.danger{
+      background:var(--danger);
+    }
+
+    .view{display:none}
+    .view.active{display:block}
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(12,1fr);
+      gap:18px;
+    }
+
+    .card{
+      background:var(--panel);
+      border:1px solid rgba(223,229,221,.9);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:20px;
+      min-width:0;
+    }
+
+    .span-3{grid-column:span 3}
+    .span-4{grid-column:span 4}
+    .span-5{grid-column:span 5}
+    .span-6{grid-column:span 6}
+    .span-7{grid-column:span 7}
+    .span-8{grid-column:span 8}
+    .span-12{grid-column:span 12}
+
+    .metric{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+    }
+
+    .metric .icon{
+      width:42px;
+      height:42px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      background:var(--green-soft);
+      font-size:21px;
+    }
+
+    .metric strong{
+      display:block;
+      font-size:30px;
+      margin-top:12px;
+    }
+
+    .metric span{
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .section-title{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      margin-bottom:14px;
+    }
+
+    .section-title h3{
+      margin:0;
+      font-size:18px;
+    }
+
+    .section-title small{
+      color:var(--muted);
+    }
+
+    .list{
+      display:grid;
+      gap:10px;
+    }
+
+    .task{
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      align-items:start;
+      gap:12px;
+      padding:13px;
+      border-radius:15px;
+      background:#f8faf7;
+      border:1px solid var(--line);
+    }
+
+    .task.done{
+      opacity:.58;
+    }
+
+    .task.done .task-title{
+      text-decoration:line-through;
+    }
+
+    .check{
+      width:21px;
+      height:21px;
+      margin-top:2px;
+      accent-color:var(--green);
+    }
+
+    .task-title{
+      font-weight:800;
+      margin-bottom:4px;
+    }
+
+    .meta{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 9px;
+      border-radius:999px;
+      background:var(--green-soft);
+      color:var(--green);
+      font-size:11px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+    .pill.amber{
+      background:#fff3d9;
+      color:#8a5a00;
+    }
+
+    .recommendation{
+      padding:16px;
+      border-radius:17px;
+      background:linear-gradient(135deg,#e9f4eb,#f8fbf7);
+      border:1px solid #d7e7db;
+      margin-bottom:12px;
+    }
+
+    .recommendation strong{
+      display:block;
+      margin-bottom:6px;
+    }
+
+    .recommendation p{
+      margin:0;
+      color:#516158;
+      line-height:1.5;
+      font-size:14px;
+    }
+
+    .empty{
+      padding:26px 16px;
+      text-align:center;
+      color:var(--muted);
+      border:1px dashed var(--line);
+      border-radius:16px;
+    }
+
+    .collection{
+      display:grid;
+      gap:13px;
+    }
+
+    .item{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:16px;
+      padding:16px;
+      border-radius:17px;
+      border:1px solid var(--line);
+      background:#fbfcfa;
+    }
+
+    .item h4{
+      margin:0 0 6px;
+      font-size:16px;
+    }
+
+    .item p{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .item-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .icon-btn{
+      width:36px;
+      height:36px;
+      border-radius:11px;
+      border:1px solid var(--line);
+      background:white;
+    }
+
+    .form-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+
+    label{
+      display:grid;
+      gap:7px;
+      font-size:13px;
+      font-weight:750;
+      color:#475249;
+    }
+
+    label.full{grid-column:1/-1}
+
+    input,select,textarea{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:11px 12px;
+      background:white;
+      color:var(--ink);
+      outline:none;
+    }
+
+    input:focus,select:focus,textarea:focus{
+      border-color:#8db39a;
+      box-shadow:0 0 0 3px rgba(47,107,69,.1);
+    }
+
+    textarea{
+      resize:vertical;
+      min-height:92px;
+    }
+
+    dialog{
+      border:0;
+      border-radius:22px;
+      padding:0;
+      width:min(640px,calc(100vw - 28px));
+      box-shadow:0 30px 80px rgba(0,0,0,.25);
+    }
+
+    dialog::backdrop{
+      background:rgba(12,25,17,.5);
+      backdrop-filter:blur(4px);
+    }
+
+    .modal{
+      padding:22px;
+    }
+
+    .modal-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      margin-bottom:18px;
+    }
+
+    .modal-head h3{
+      margin:0;
+    }
+
+    .modal-foot{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top:18px;
+    }
+
+    .close{
+      border:0;
+      background:transparent;
+      font-size:24px;
+      color:var(--muted);
+    }
+
+    .garden-map{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:12px;
+    }
+
+    .plot{
+      min-height:145px;
+      border-radius:18px;
+      padding:16px;
+      border:1px solid #d6e4d8;
+      background:
+        linear-gradient(rgba(255,255,255,.72),rgba(255,255,255,.72)),
+        repeating-linear-gradient(45deg,#dbe9d8 0 12px,#d3e4d0 12px 24px);
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+
+    .plot strong{font-size:16px}
+    .plot small{color:var(--muted)}
+
+    .journal-entry{
+      border-left:4px solid var(--green);
+      padding:14px 15px;
+      background:#fafcf9;
+      border-radius:0 14px 14px 0;
+      border-top:1px solid var(--line);
+      border-right:1px solid var(--line);
+      border-bottom:1px solid var(--line);
+    }
+
+    .journal-entry h4{
+      margin:0 0 5px;
+    }
+
+    .journal-entry p{
+      margin:8px 0 0;
+      color:#526057;
+      line-height:1.5;
+      font-size:14px;
+    }
+
+    .settings-note{
+      padding:14px;
+      border-radius:14px;
+      background:#fff8e8;
+      border:1px solid #f1dfb5;
+      color:#6e5724;
+      font-size:13px;
+      line-height:1.5;
+    }
+
+    .mobile-nav{display:none}
+
+    @media (max-width:1000px){
+      .app{grid-template-columns:84px 1fr}
+      aside{padding:20px 12px}
+      .brand{justify-content:center}
+      .brand-copy,.nav-label,.sidebar-card{display:none}
+      .nav-btn{justify-content:center;padding:12px}
+      .span-3{grid-column:span 6}
+      .span-5,.span-7{grid-column:span 12}
+    }
+
+    @media (max-width:720px){
+      .app{display:block}
+      aside{display:none}
+      main{padding:18px 16px 90px}
+      .topbar{align-items:flex-start;flex-direction:column}
+      .top-actions{width:100%;justify-content:flex-start}
+      h2{font-size:27px}
+      .grid{gap:13px}
+      .span-3,.span-4,.span-5,.span-6,.span-7,.span-8,.span-12{grid-column:span 12}
+      .form-grid{grid-template-columns:1fr}
+      .garden-map{grid-template-columns:1fr}
+      .mobile-nav{
+        display:grid;
+        grid-template-columns:repeat(5,1fr);
+        position:fixed;
+        left:10px;
+        right:10px;
+        bottom:10px;
+        z-index:20;
+        background:rgba(23,50,34,.97);
+        border-radius:18px;
+        padding:8px;
+        box-shadow:0 18px 40px rgba(0,0,0,.2);
+      }
+      .mobile-nav button{
+        border:0;
+        color:#dce6de;
+        background:transparent;
+        border-radius:12px;
+        padding:10px 4px;
+        font-size:17px;
+      }
+      .mobile-nav button.active{background:rgba(255,255,255,.12);color:white}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <div class="logo">🌿</div>
+        <div class="brand-copy">
+          <h1>GardenOS</h1>
+          <small>Garden intelligence</small>
+        </div>
+      </div>
+
+      <nav id="desktopNav">
+        <button class="nav-btn active" data-view="dashboard"><span>🏡</span><span class="nav-label">Today</span></button>
+        <button class="nav-btn" data-view="garden"><span>🗺️</span><span class="nav-label">Garden</span></button>
+        <button class="nav-btn" data-view="plants"><span>🌱</span><span class="nav-label">Plantings</span></button>
+        <button class="nav-btn" data-view="tasks"><span>✅</span><span class="nav-label">Tasks</span></button>
+        <button class="nav-btn" data-view="journal"><span>📓</span><span class="nav-label">Journal</span></button>
+        <button class="nav-btn" data-view="settings"><span>⚙️</span><span class="nav-label">Settings</span></button>
+      </nav>
+
+      <div class="sidebar-card">
+        <strong>Local-first prototype</strong><br>
+        Your data stays in this browser and persists after refresh.
+      </div>
+    </aside>
+
+    <main>
+      <section id="dashboard" class="view active">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">GardenOS v0.1</p>
+            <h2>Good morning, Roberto</h2>
+            <p class="subtitle" id="dateSubtitle"></p>
+          </div>
+          <div class="top-actions">
+            <button class="btn secondary" onclick="openModal('journalModal')">Add observation</button>
+            <button class="btn" onclick="openModal('taskModal')">+ New task</button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card span-3">
+            <div class="metric">
+              <div>
+                <span>Garden sections</span>
+                <strong id="metricSections">0</strong>
+              </div>
+              <div class="icon">🗺️</div>
+            </div>
+          </div>
+
+          <div class="card span-3">
+            <div class="metric">
+              <div>
+                <span>Plantings</span>
+                <strong id="metricPlantings">0</strong>
+              </div>
+              <div class="icon">🌱</div>
+            </div>
+          </div>
+
+          <div class="card span-3">
+            <div class="metric">
+              <div>
+                <span>Open tasks</span>
+                <strong id="metricTasks">0</strong>
+              </div>
+              <div class="icon">✅</div>
+            </div>
+          </div>
+
+          <div class="card span-3">
+            <div class="metric">
+              <div>
+                <span>Observations</span>
+                <strong id="metricJournal">0</strong>
+              </div>
+              <div class="icon">📓</div>
+            </div>
+          </div>
+
+          <div class="card span-7">
+            <div class="section-title">
+              <div>
+                <h3>Today’s actions</h3>
+                <small>What needs your attention now</small>
+              </div>
+              <button class="btn secondary" onclick="showView('tasks')">View all</button>
+            </div>
+            <div class="list" id="todayTasks"></div>
+          </div>
+
+          <div class="card span-5">
+            <div class="section-title">
+              <div>
+                <h3>Garden intelligence</h3>
+                <small>Early recommendations from your data</small>
+              </div>
+            </div>
+            <div id="recommendations"></div>
+          </div>
+
+          <div class="card span-12">
+            <div class="section-title">
+              <div>
+                <h3>Garden overview</h3>
+                <small>Your spaces at a glance</small>
+              </div>
+              <button class="btn secondary" onclick="openModal('sectionModal')">+ Add section</button>
+            </div>
+            <div class="garden-map" id="dashboardMap"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="garden" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Property structure</p>
+            <h2>Your garden</h2>
+            <p class="subtitle">Organize the property into meaningful growing areas.</p>
+          </div>
+          <button class="btn" onclick="openModal('sectionModal')">+ Add section</button>
+        </div>
+        <div class="card">
+          <div class="garden-map" id="gardenSections"></div>
+        </div>
+      </section>
+
+      <section id="plants" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Plant inventory</p>
+            <h2>Plantings</h2>
+            <p class="subtitle">Track groups of plants without creating fifty separate records.</p>
+          </div>
+          <button class="btn" onclick="openModal('plantingModal')">+ Add planting</button>
+        </div>
+        <div class="card">
+          <div class="collection" id="plantingList"></div>
+        </div>
+      </section>
+
+      <section id="tasks" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Execution</p>
+            <h2>Tasks</h2>
+            <p class="subtitle">A simple operational list for everything your garden needs.</p>
+          </div>
+          <button class="btn" onclick="openModal('taskModal')">+ New task</button>
+        </div>
+        <div class="card">
+          <div class="list" id="taskList"></div>
+        </div>
+      </section>
+
+      <section id="journal" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Garden memory</p>
+            <h2>Observation journal</h2>
+            <p class="subtitle">Record what happened so future recommendations have context.</p>
+          </div>
+          <button class="btn" onclick="openModal('journalModal')">+ Add observation</button>
+        </div>
+        <div class="card">
+          <div class="collection" id="journalList"></div>
+        </div>
+      </section>
+
+      <section id="settings" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Profile</p>
+            <h2>Garden settings</h2>
+            <p class="subtitle">These settings will later drive seasonal and location-aware recommendations.</p>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card span-8">
+            <div class="form-grid">
+              <label>
+                Name
+                <input id="profileName" />
+              </label>
+              <label>
+                Location
+                <input id="profileLocation" />
+              </label>
+              <label>
+                ZIP code
+                <input id="profileZip" />
+              </label>
+              <label>
+                USDA zone
+                <input id="profileZone" />
+              </label>
+              <label>
+                Soil type
+                <select id="profileSoil">
+                  <option>Clay</option>
+                  <option>Loam</option>
+                  <option>Sandy</option>
+                  <option>Silty</option>
+                  <option>Mixed / Unknown</option>
+                </select>
+              </label>
+              <label>
+                Default sun exposure
+                <select id="profileSun">
+                  <option>Full sun</option>
+                  <option>Part sun</option>
+                  <option>Part shade</option>
+                  <option>Shade</option>
+                  <option>Mixed</option>
+                </select>
+              </label>
+              <label class="full">
+                Preferences
+                <textarea id="profilePreferences"></textarea>
+              </label>
+            </div>
+            <div class="modal-foot">
+              <button class="btn" onclick="saveProfile()">Save settings</button>
+            </div>
+          </div>
+
+          <div class="card span-4">
+            <div class="section-title"><h3>Prototype data</h3></div>
+            <div class="settings-note">
+              All records are stored in your browser using localStorage. This makes the prototype immediately testable without accounts, servers, or setup.
+            </div>
+            <div class="modal-foot" style="justify-content:flex-start">
+              <button class="btn danger" onclick="resetDemo()">Reset demo data</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="mobile-nav" id="mobileNav">
+    <button class="active" data-view="dashboard">🏡</button>
+    <button data-view="garden">🗺️</button>
+    <button data-view="plants">🌱</button>
+    <button data-view="tasks">✅</button>
+    <button data-view="journal">📓</button>
+  </div>
+
+  <dialog id="sectionModal">
+    <form method="dialog" class="modal" onsubmit="addSection(event)">
+      <div class="modal-head">
+        <h3>Add garden section</h3>
+        <button type="button" class="close" onclick="closeModal('sectionModal')">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Name
+          <input id="sectionName" required placeholder="Butterfly Garden" />
+        </label>
+        <label>
+          Purpose
+          <input id="sectionPurpose" placeholder="Pollinators and summer color" />
+        </label>
+        <label>
+          Sun exposure
+          <select id="sectionSun">
+            <option>Full sun</option>
+            <option>Part sun</option>
+            <option>Part shade</option>
+            <option>Shade</option>
+          </select>
+        </label>
+        <label>
+          Soil type
+          <select id="sectionSoil">
+            <option>Loam</option>
+            <option>Clay</option>
+            <option>Sandy</option>
+            <option>Mixed</option>
+          </select>
+        </label>
+        <label class="full">
+          Description
+          <textarea id="sectionDescription" placeholder="What makes this section unique?"></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn secondary" onclick="closeModal('sectionModal')">Cancel</button>
+        <button class="btn" type="submit">Add section</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="plantingModal">
+    <form method="dialog" class="modal" onsubmit="addPlanting(event)">
+      <div class="modal-head">
+        <h3>Add planting</h3>
+        <button type="button" class="close" onclick="closeModal('plantingModal')">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Planting name
+          <input id="plantingName" required placeholder="Zinnias Summer Mix" />
+        </label>
+        <label>
+          Species
+          <input id="plantingSpecies" required placeholder="Zinnia elegans" />
+        </label>
+        <label>
+          Quantity
+          <input id="plantingQuantity" type="number" min="1" value="1" required />
+        </label>
+        <label>
+          Section
+          <select id="plantingSection"></select>
+        </label>
+        <label>
+          Status
+          <select id="plantingStatus">
+            <option>Planned</option>
+            <option>Seed started</option>
+            <option>Planted</option>
+            <option>Growing</option>
+            <option>Blooming</option>
+            <option>Harvesting</option>
+            <option>Finished</option>
+          </select>
+        </label>
+        <label>
+          Plant date
+          <input id="plantingDate" type="date" />
+        </label>
+        <label class="full">
+          Notes
+          <textarea id="plantingNotes"></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn secondary" onclick="closeModal('plantingModal')">Cancel</button>
+        <button class="btn" type="submit">Add planting</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="taskModal">
+    <form method="dialog" class="modal" onsubmit="addTask(event)">
+      <div class="modal-head">
+        <h3>Create task</h3>
+        <button type="button" class="close" onclick="closeModal('taskModal')">×</button>
+      </div>
+      <div class="form-grid">
+        <label class="full">
+          Task title
+          <input id="taskTitle" required placeholder="Water raised bed #2" />
+        </label>
+        <label>
+          Type
+          <select id="taskType">
+            <option>Watering</option>
+            <option>Planting</option>
+            <option>Maintenance</option>
+            <option>Inspection</option>
+            <option>Harvest</option>
+            <option>Planning</option>
+          </select>
+        </label>
+        <label>
+          Due date
+          <input id="taskDate" type="date" required />
+        </label>
+        <label>
+          Source
+          <select id="taskSource">
+            <option>User</option>
+            <option>AI</option>
+            <option>Seasonal</option>
+            <option>Plant database</option>
+          </select>
+        </label>
+        <label>
+          Related section
+          <select id="taskSection"></select>
+        </label>
+        <label class="full">
+          Description
+          <textarea id="taskDescription"></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn secondary" onclick="closeModal('taskModal')">Cancel</button>
+        <button class="btn" type="submit">Create task</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="journalModal">
+    <form method="dialog" class="modal" onsubmit="addJournal(event)">
+      <div class="modal-head">
+        <h3>Add observation</h3>
+        <button type="button" class="close" onclick="closeModal('journalModal')">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Title
+          <input id="journalTitle" required placeholder="Japanese beetles found" />
+        </label>
+        <label>
+          Date
+          <input id="journalDate" type="date" required />
+        </label>
+        <label>
+          Section
+          <select id="journalSection"></select>
+        </label>
+        <label>
+          Tags
+          <input id="journalTags" placeholder="pest, leaves, beetle" />
+        </label>
+        <label class="full">
+          What did you observe?
+          <textarea id="journalDescription" required></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn secondary" onclick="closeModal('journalModal')">Cancel</button>
+        <button class="btn" type="submit">Save observation</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const STORAGE_KEY = "gardenos-v01";
+
+    const seedData = {
+      profile:{
+        name:"Roberto",
+        location:"Lead Hill, Arkansas",
+        zipcode:"",
+        usdaZone:"7a",
+        soilType:"Mixed / Unknown",
+        sunExposure:"Mixed",
+        preferences:"Annual flowers, pollinator plants, red/white/blue combinations, low maintenance"
+      },
+      sections:[
+        {id:crypto.randomUUID(),name:"Butterfly Garden",purpose:"Pollinators and summer color",sun:"Full sun",soil:"Loam",description:"A bright pollinator-focused bed near the back fence."},
+        {id:crypto.randomUUID(),name:"Raised Beds",purpose:"Vegetables and herbs",sun:"Full sun",soil:"Loam",description:"Primary food-growing area with two raised beds."},
+        {id:crypto.randomUUID(),name:"Hosta Area",purpose:"Shade foliage",sun:"Shade",soil:"Mixed",description:"Cooler shaded area with established hostas."},
+        {id:crypto.randomUUID(),name:"Shade Garden",purpose:"Low-light perennials",sun:"Part shade",soil:"Clay",description:"A developing section under mature trees."}
+      ],
+      plantings:[],
+      tasks:[],
+      journal:[]
+    };
+
+    function todayISO(offset=0){
+      const d = new Date();
+      d.setDate(d.getDate()+offset);
+      return d.toISOString().slice(0,10);
+    }
+
+    function loadData(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+
+      const data = structuredClone(seedData);
+      data.plantings = [
+        {id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix."},
+        {id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties."},
+        {id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting."}
+      ];
+      data.tasks = [
+        {id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false},
+        {id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false},
+        {id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false}
+      ];
+      data.journal = [
+        {id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning."}
+      ];
+      saveData(data);
+      return data;
+    }
+
+    let state = loadData();
+
+    function saveData(data=state){
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+    }
+
+    function formatDate(value){
+      if(!value) return "No date";
+      const d = new Date(value+"T12:00:00");
+      return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+    }
+
+    function sectionName(id){
+      return state.sections.find(s=>s.id===id)?.name || "Unassigned";
+    }
+
+    function openModal(id){
+      syncSelects();
+      if(id==="taskModal") document.getElementById("taskDate").value = todayISO();
+      if(id==="journalModal") document.getElementById("journalDate").value = todayISO();
+      document.getElementById(id).showModal();
+    }
+
+    function closeModal(id){
+      document.getElementById(id).close();
+    }
+
+    function showView(view){
+      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+      document.getElementById(view).classList.add("active");
+
+      document.querySelectorAll("[data-view]").forEach(btn=>{
+        btn.classList.toggle("active",btn.dataset.view===view);
+      });
+
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
+
+    document.querySelectorAll("[data-view]").forEach(btn=>{
+      btn.addEventListener("click",()=>showView(btn.dataset.view));
+    });
+
+    function syncSelects(){
+      const options = ['<option value="">Unassigned</option>']
+        .concat(state.sections.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`))
+        .join("");
+
+      ["plantingSection","taskSection","journalSection"].forEach(id=>{
+        document.getElementById(id).innerHTML = options;
+      });
+    }
+
+    function escapeHtml(text=""){
+      return String(text)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function render(){
+      document.getElementById("dateSubtitle").textContent =
+        new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+
+      document.getElementById("metricSections").textContent = state.sections.length;
+      document.getElementById("metricPlantings").textContent = state.plantings.length;
+      document.getElementById("metricTasks").textContent = state.tasks.filter(t=>!t.completed).length;
+      document.getElementById("metricJournal").textContent = state.journal.length;
+
+      renderTasks();
+      renderSections();
+      renderPlantings();
+      renderJournal();
+      renderRecommendations();
+      renderProfile();
+      syncSelects();
+    }
+
+    function renderTasks(){
+      const sorted = [...state.tasks].sort((a,b)=>a.completed-b.completed || a.dueDate.localeCompare(b.dueDate));
+      const taskHtml = sorted.length ? sorted.map(taskCard).join("") : `<div class="empty">No tasks yet.</div>`;
+      document.getElementById("taskList").innerHTML = taskHtml;
+
+      const todayTasks = sorted.filter(t=>!t.completed && t.dueDate<=todayISO()).slice(0,5);
+      document.getElementById("todayTasks").innerHTML =
+        todayTasks.length ? todayTasks.map(taskCard).join("") : `<div class="empty">Nothing urgent today.</div>`;
+    }
+
+    function taskCard(t){
+      const overdue = !t.completed && t.dueDate < todayISO();
+      return `
+        <div class="task ${t.completed?"done":""}">
+          <input class="check" type="checkbox" ${t.completed?"checked":""} onchange="toggleTask('${t.id}')">
+          <div>
+            <div class="task-title">${escapeHtml(t.title)}</div>
+            <div class="meta">${escapeHtml(t.type)} · ${escapeHtml(sectionName(t.sectionId))}<br>${escapeHtml(t.description||"")}</div>
+          </div>
+          <div>
+            <span class="pill ${overdue?"amber":""}">${overdue?"Overdue":formatDate(t.dueDate)}</span>
+            <button class="icon-btn" title="Delete" onclick="deleteTask('${t.id}')" style="margin-left:6px">🗑️</button>
+          </div>
+        </div>`;
+    }
+
+    function renderSections(){
+      const html = state.sections.length ? state.sections.map(s=>`
+        <div class="plot">
+          <div>
+            <strong>${escapeHtml(s.name)}</strong>
+            <p class="meta">${escapeHtml(s.description||s.purpose||"Garden section")}</p>
+          </div>
+          <div>
+            <span class="pill">${escapeHtml(s.sun)}</span>
+            <span class="pill">${escapeHtml(s.soil)}</span>
+            <button class="icon-btn" onclick="deleteSection('${s.id}')" title="Delete section" style="float:right">🗑️</button>
+          </div>
+        </div>`).join("") : `<div class="empty">No garden sections yet.</div>`;
+
+      document.getElementById("gardenSections").innerHTML = html;
+      document.getElementById("dashboardMap").innerHTML = html;
+    }
+
+    function renderPlantings(){
+      const html = state.plantings.length ? state.plantings.map(p=>`
+        <div class="item">
+          <div>
+            <h4>${escapeHtml(p.name)} <span class="pill">${escapeHtml(p.status)}</span></h4>
+            <p><strong>${p.quantity}</strong> plants · ${escapeHtml(p.species)} · ${escapeHtml(sectionName(p.sectionId))}</p>
+            <p>${escapeHtml(p.notes||"No notes")} ${p.plantDate?`· Planted ${formatDate(p.plantDate)}`:""}</p>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" onclick="deletePlanting('${p.id}')" title="Delete">🗑️</button>
+          </div>
+        </div>`).join("") : `<div class="empty">No plantings yet.</div>`;
+      document.getElementById("plantingList").innerHTML = html;
+    }
+
+    function renderJournal(){
+      const entries = [...state.journal].sort((a,b)=>b.date.localeCompare(a.date));
+      const html = entries.length ? entries.map(j=>`
+        <div class="journal-entry">
+          <div class="section-title" style="margin-bottom:0">
+            <div>
+              <h4>${escapeHtml(j.title)}</h4>
+              <div class="meta">${formatDate(j.date)} · ${escapeHtml(sectionName(j.sectionId))}</div>
+            </div>
+            <button class="icon-btn" onclick="deleteJournal('${j.id}')" title="Delete">🗑️</button>
+          </div>
+          <p>${escapeHtml(j.description)}</p>
+          <div style="margin-top:10px">${(j.tags||[]).map(tag=>`<span class="pill">${escapeHtml(tag)}</span>`).join(" ")}</div>
+        </div>`).join("") : `<div class="empty">No observations yet.</div>`;
+      document.getElementById("journalList").innerHTML = html;
+    }
+
+    function renderRecommendations(){
+      const recs = [];
+      const open = state.tasks.filter(t=>!t.completed);
+      const beetles = state.journal.some(j=>j.description.toLowerCase().includes("beetle") || j.title.toLowerCase().includes("beetle"));
+      const butterfly = state.sections.find(s=>s.name.toLowerCase().includes("butterfly"));
+      const zinnias = state.plantings.find(p=>p.name.toLowerCase().includes("zinnia"));
+
+      if(beetles){
+        recs.push({title:"Continue pest monitoring",text:"Recent journal entries mention beetle activity. Inspect affected plants early in the morning and record whether damage is increasing."});
+      }
+      if(butterfly && zinnias){
+        recs.push({title:"Strengthen the pollinator mix",text:"Your Butterfly Garden already contains zinnias. Adding cosmos or alyssum could extend bloom diversity and support more pollinators."});
+      }
+      if(open.length>3){
+        recs.push({title:"Prioritize the task queue",text:`You have ${open.length} open tasks. Complete overdue and watering tasks before planning new garden work.`});
+      }
+      if(!recs.length){
+        recs.push({title:"Your garden is stable",text:"No immediate patterns require attention. Keep adding observations so GardenOS can build a better history."});
+      }
+
+      document.getElementById("recommendations").innerHTML = recs.slice(0,3).map(r=>`
+        <div class="recommendation"><strong>${r.title}</strong><p>${r.text}</p></div>
+      `).join("");
+    }
+
+    function renderProfile(){
+      const p = state.profile;
+      document.getElementById("profileName").value = p.name||"";
+      document.getElementById("profileLocation").value = p.location||"";
+      document.getElementById("profileZip").value = p.zipcode||"";
+      document.getElementById("profileZone").value = p.usdaZone||"";
+      document.getElementById("profileSoil").value = p.soilType||"Mixed / Unknown";
+      document.getElementById("profileSun").value = p.sunExposure||"Mixed";
+      document.getElementById("profilePreferences").value = p.preferences||"";
+      document.querySelector("#dashboard h2").textContent = `Good morning, ${p.name||"Gardener"}`;
+    }
+
+    function addSection(event){
+      event.preventDefault();
+      state.sections.push({
+        id:crypto.randomUUID(),
+        name:document.getElementById("sectionName").value.trim(),
+        purpose:document.getElementById("sectionPurpose").value.trim(),
+        sun:document.getElementById("sectionSun").value,
+        soil:document.getElementById("sectionSoil").value,
+        description:document.getElementById("sectionDescription").value.trim()
+      });
+      saveData(); event.target.reset(); closeModal("sectionModal"); render();
+    }
+
+    function addPlanting(event){
+      event.preventDefault();
+      state.plantings.push({
+        id:crypto.randomUUID(),
+        name:document.getElementById("plantingName").value.trim(),
+        species:document.getElementById("plantingSpecies").value.trim(),
+        quantity:Number(document.getElementById("plantingQuantity").value),
+        sectionId:document.getElementById("plantingSection").value,
+        status:document.getElementById("plantingStatus").value,
+        plantDate:document.getElementById("plantingDate").value,
+        notes:document.getElementById("plantingNotes").value.trim()
+      });
+      saveData(); event.target.reset(); closeModal("plantingModal"); render();
+    }
+
+    function addTask(event){
+      event.preventDefault();
+      state.tasks.push({
+        id:crypto.randomUUID(),
+        title:document.getElementById("taskTitle").value.trim(),
+        type:document.getElementById("taskType").value,
+        dueDate:document.getElementById("taskDate").value,
+        source:document.getElementById("taskSource").value,
+        sectionId:document.getElementById("taskSection").value,
+        description:document.getElementById("taskDescription").value.trim(),
+        completed:false
+      });
+      saveData(); event.target.reset(); closeModal("taskModal"); render();
+    }
+
+    function addJournal(event){
+      event.preventDefault();
+      state.journal.push({
+        id:crypto.randomUUID(),
+        title:document.getElementById("journalTitle").value.trim(),
+        date:document.getElementById("journalDate").value,
+        sectionId:document.getElementById("journalSection").value,
+        tags:document.getElementById("journalTags").value.split(",").map(x=>x.trim()).filter(Boolean),
+        description:document.getElementById("journalDescription").value.trim()
+      });
+      saveData(); event.target.reset(); closeModal("journalModal"); render();
+    }
+
+    function toggleTask(id){
+      const task = state.tasks.find(t=>t.id===id);
+      if(task) task.completed = !task.completed;
+      saveData(); render();
+    }
+
+    function deleteTask(id){
+      state.tasks = state.tasks.filter(t=>t.id!==id);
+      saveData(); render();
+    }
+
+    function deletePlanting(id){
+      state.plantings = state.plantings.filter(p=>p.id!==id);
+      saveData(); render();
+    }
+
+    function deleteJournal(id){
+      state.journal = state.journal.filter(j=>j.id!==id);
+      saveData(); render();
+    }
+
+    function deleteSection(id){
+      const hasChildren = state.plantings.some(p=>p.sectionId===id) || state.tasks.some(t=>t.sectionId===id) || state.journal.some(j=>j.sectionId===id);
+      if(hasChildren && !confirm("This section is linked to other records. Delete the section and leave those records unassigned?")) return;
+      state.sections = state.sections.filter(s=>s.id!==id);
+      state.plantings.forEach(p=>{if(p.sectionId===id)p.sectionId=""});
+      state.tasks.forEach(t=>{if(t.sectionId===id)t.sectionId=""});
+      state.journal.forEach(j=>{if(j.sectionId===id)j.sectionId=""});
+      saveData(); render();
+    }
+
+    function saveProfile(){
+      state.profile = {
+        name:document.getElementById("profileName").value.trim(),
+        location:document.getElementById("profileLocation").value.trim(),
+        zipcode:document.getElementById("profileZip").value.trim(),
+        usdaZone:document.getElementById("profileZone").value.trim(),
+        soilType:document.getElementById("profileSoil").value,
+        sunExposure:document.getElementById("profileSun").value,
+        preferences:document.getElementById("profilePreferences").value.trim()
+      };
+      saveData(); render();
+      alert("Settings saved.");
+    }
+
+    function resetDemo(){
+      if(!confirm("Reset all GardenOS prototype data?")) return;
+      localStorage.removeItem(STORAGE_KEY);
+      state = loadData();
+      render();
+      showView("dashboard");
+    }
+
+    render();
+  </script>
+</body>
+</html>
