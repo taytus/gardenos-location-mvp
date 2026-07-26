@@ -361,6 +361,162 @@ async function main() {
     await ctx.close();
   }
 
+  // ============================================ honest-labelling: seed vs user
+  // Regression for the foxtrot honesty layer. Two guarantees:
+  //   1) Records created by the demo seed carry seed:true and render the
+  //      "Sample" badge in the plants view.
+  //   2) State written in the OLD shape (no `seed` marker) is preserved
+  //      untouched on load — those records are treated as user-authored,
+  //      never labelled Sample, and the migration does NOT silently add
+  //      seed:true to pre-existing data.
+  // The red run is the unfixed code, which has no seed marker at all: no
+  // record would render the badge, so this section would fail on the
+  // "seeded plantings show the badge" assertion. With the foxtrot fix the
+  // section passes.
+  section('Honest-labelling: sample data is marked, user data is not (foxtrot)');
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage(); attach(page);
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+
+    // 1) Seed records in fresh state carry seed:true and render the badge.
+    const fresh = await page.evaluate(() => {
+      const key = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(key));
+      return {
+        seedCount: (s.plantings || []).filter(p => p.seed === true).length,
+        plantingTotal: (s.plantings || []).length,
+      };
+    });
+    check('fresh seed plantings all carry seed:true',
+      fresh.seedCount === fresh.plantingTotal && fresh.plantingTotal > 0,
+      `seed=${fresh.seedCount} total=${fresh.plantingTotal}`);
+
+    await page.evaluate(() => window.showView && window.showView('plants'));
+    await page.waitForTimeout(700);
+    const badgeCount = await page.evaluate(() => {
+      // Count rendered Sample badges in the planting list only. Going
+      // through the DOM (instead of page.content()) avoids matching the
+      // helper's own source string inside <script> blocks.
+      const list = document.getElementById('plantingList');
+      if (!list) return -1;
+      return list.querySelectorAll('.sample-badge').length;
+    });
+    check('every fresh seed planting renders the Sample badge',
+      badgeCount === fresh.plantingTotal,
+      `badges=${badgeCount} expected=${fresh.plantingTotal}`);
+
+    // 2) A planting the user creates in the UI does NOT get the badge.
+    await page.evaluate(() => {
+      const k = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(k));
+      s.plantings.push({
+        id: 'usr-planting-1',
+        name: 'User basil',
+        species: 'Ocimum basilicum',
+        quantity: 4,
+        sectionId: s.sections[0].id,
+        status: 'Growing',
+        plantDate: '2026-07-01',
+        notes: 'Added by Roberto',
+      });
+      localStorage.setItem(k, JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.evaluate(() => window.showView && window.showView('plants'));
+    await page.waitForTimeout(700);
+    const afterUser = await page.evaluate(() => {
+      const list = document.getElementById('plantingList');
+      return {
+        hasUserBadge: !!list.querySelector('[data-sample-id="usr-planting-1"]'),
+        textHasUserBasil: /User basil/.test(list.textContent || ''),
+      };
+    });
+    check('user-created planting has no Sample badge in the DOM',
+      afterUser.hasUserBadge === false,
+      'usr-planting-1 must not appear as a sample');
+    check('user-created planting text still renders',
+      afterUser.textHasUserBasil === true);
+
+    // 3) Pre-existing-install proof: load state written in the OLD shape
+    //    (no `seed` marker on anything). Migration must not relabel it.
+    await page.evaluate(() => {
+      const k = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      // Build the OLD shape deliberately: no seed field, no source field.
+      const legacy = {
+        profile: { name: 'Roberto', location: 'Lead Hill, Arkansas', zipcode: '',
+          usdaZone: '7a', soilType: 'Mixed / Unknown', sunExposure: 'Mixed',
+          preferences: 'flowers' },
+        sections: [
+          { id: 'legacy-sec-1', name: 'Legacy Bed', purpose: '', sun: 'Full sun',
+            soil: 'Loam', description: 'Created before the honesty layer existed.' },
+        ],
+        plantings: [
+          { id: 'legacy-planting-1', name: 'Legacy tomatoes', species: 'Solanum lycopersicum',
+            quantity: 6, sectionId: 'legacy-sec-1', status: 'Growing',
+            plantDate: '2026-04-01', notes: 'Roberto planted these.' },
+        ],
+        tasks: [
+          { id: 'legacy-task-1', title: 'Legacy watering', type: 'Watering',
+            dueDate: '2026-07-01', source: 'User', sectionId: 'legacy-sec-1',
+            description: 'Pre-honesty-layer task.', completed: false },
+        ],
+        journal: [
+          { id: 'legacy-journal-1', title: 'Legacy observation', date: '2026-06-15',
+            sectionId: 'legacy-sec-1', tags: ['legacy'],
+            description: 'A real observation written before the marker existed.' },
+        ],
+      };
+      localStorage.setItem(k, JSON.stringify(legacy));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    const migrated = await page.evaluate(() => {
+      const k = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(k));
+      const collect = (arr) => arr.filter(r => r && r.seed === true).map(r => r.id);
+      return {
+        seededSections: collect(s.sections),
+        seededPlantings: collect(s.plantings),
+        seededTasks: collect(s.tasks),
+        seededJournal: collect(s.journal),
+        plantingNames: (s.plantings || []).map(p => p.name),
+      };
+    });
+    check('migration did NOT relabel legacy sections as seed',
+      migrated.seededSections.length === 0,
+      `seededSections=${migrated.seededSections.join(',')}`);
+    check('migration did NOT relabel legacy plantings as seed',
+      migrated.seededPlantings.length === 0,
+      `seededPlantings=${migrated.seededPlantings.join(',')}`);
+    check('migration did NOT relabel legacy tasks as seed',
+      migrated.seededTasks.length === 0,
+      `seededTasks=${migrated.seededTasks.join(',')}`);
+    check('migration did NOT relabel legacy journal entries as seed',
+      migrated.seededJournal.length === 0,
+      `seededJournal=${migrated.seededJournal.join(',')}`);
+    check('legacy planting is still present in state',
+      migrated.plantingNames.includes('Legacy tomatoes'),
+      `names=${migrated.plantingNames.join('|')}`);
+
+    // 4) Legacy planting renders in the UI WITHOUT a Sample badge.
+    await page.evaluate(() => window.showView && window.showView('plants'));
+    await page.waitForTimeout(700);
+    const legacyView = await page.evaluate(() => {
+      const list = document.getElementById('plantingList');
+      return {
+        hasLegacyBadge: !!list.querySelector('[data-sample-id="legacy-planting-1"]'),
+        textHasLegacy: /Legacy tomatoes/.test(list.textContent || ''),
+      };
+    });
+    check('legacy planting text still renders',
+      legacyView.textHasLegacy === true);
+    check('legacy planting does NOT show a Sample badge',
+      legacyView.hasLegacyBadge === false,
+      'legacy-planting-1 must not be marked sample');
+
+    await ctx.close();
+  }
+
   await browser.close();
 
   const failures = results.filter(r => !r.ok);

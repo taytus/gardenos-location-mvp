@@ -311,6 +311,25 @@
       color:#8a5a00;
     }
 
+    /* Honest-labelling badge. Sits next to the item, never replacing it.
+     * Quiet, not decorative. Inline-flex keeps it on the same line as the
+     * .pill chip inside .item h4 without re-flowing the title. */
+    .sample-badge{
+      display:inline-flex;
+      align-items:center;
+      margin-left:6px;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:600;
+      letter-spacing:.03em;
+      background:#eef2ee;
+      color:#516158;
+      border:1px solid var(--line);
+      vertical-align:baseline;
+      line-height:1.4;
+    }
+
     .recommendation{
       padding:16px;
       border-radius:17px;
@@ -956,8 +975,11 @@
             <div class="settings-note">
               All records are stored in your browser using localStorage. This makes the prototype immediately testable without accounts, servers, or setup.
             </div>
+            <div class="settings-note">
+              <strong>Behaviour note (foxtrot):</strong> the button below currently clears every record on this device &mdash; sample <em>and</em> anything you added yourself &mdash; then reloads fresh sample data. The button label and copy are honest about that today. The dispatcher has been told that this behaviour does not yet match a true "reset sample data" action; that re-design is out of scope for this slice.
+            </div>
             <div class="modal-foot" style="justify-content:flex-start">
-              <button class="btn danger" id="resetDemoBtn" onclick="resetDemo()">Reset demo data</button>
+              <button class="btn danger" id="resetDemoBtn" onclick="resetDemo()">Clear all and reload sample data</button>
             </div>
           </div>
         </div>
@@ -1176,6 +1198,31 @@
   <script>
     const STORAGE_KEY = "gardenos-v01";
 
+    // Honest-labelling layer: every record created by the demo seed gets
+    // seed:true at the point of creation. Records the user creates are
+    // left unmarked (treated as authored by the user). The sampleBadge
+    // helper below uses this marker to render a small "Sample" badge so
+    // Roberto can always tell what's his from what shipped with the app.
+    //
+    // We use a dedicated `seed` boolean instead of overloading the
+    // existing task `source` field (which the UI picker sets to "User"
+    // / "AI" / "Seasonal" — a different concept about the *category* of
+    // the task, not whether it shipped with the demo).
+    //
+    // Pre-existing installs (state written before this marker existed)
+    // are migrated in loadData(): they are NOT relabelled as samples
+    // because that would insult genuine user observations. An unmarked
+    // record is treated as user-authored; only records explicitly marked
+    // seed:true (now or in the original seed) get the badge.
+    const SEED = true;
+
+    function markSeed(record){
+      if(record && typeof record === "object" && record.seed !== true){
+        record.seed = SEED;
+      }
+      return record;
+    }
+
     const seedData = {
       profile:{
         name:"Roberto",
@@ -1187,10 +1234,10 @@
         preferences:"Annual flowers, pollinator plants, red/white/blue combinations, low maintenance"
       },
       sections:[
-        {id:crypto.randomUUID(),name:"Butterfly Garden",purpose:"Pollinators and summer color",sun:"Full sun",soil:"Loam",description:"A bright pollinator-focused bed near the back fence."},
-        {id:crypto.randomUUID(),name:"Raised Beds",purpose:"Vegetables and herbs",sun:"Full sun",soil:"Loam",description:"Primary food-growing area with two raised beds."},
-        {id:crypto.randomUUID(),name:"Hosta Area",purpose:"Shade foliage",sun:"Shade",soil:"Mixed",description:"Cooler shaded area with established hostas."},
-        {id:crypto.randomUUID(),name:"Shade Garden",purpose:"Low-light perennials",sun:"Part shade",soil:"Clay",description:"A developing section under mature trees."}
+        markSeed({id:crypto.randomUUID(),name:"Butterfly Garden",purpose:"Pollinators and summer color",sun:"Full sun",soil:"Loam",description:"A bright pollinator-focused bed near the back fence."}),
+        markSeed({id:crypto.randomUUID(),name:"Raised Beds",purpose:"Vegetables and herbs",sun:"Full sun",soil:"Loam",description:"Primary food-growing area with two raised beds."}),
+        markSeed({id:crypto.randomUUID(),name:"Hosta Area",purpose:"Shade foliage",sun:"Shade",soil:"Mixed",description:"Cooler shaded area with established hostas."}),
+        markSeed({id:crypto.randomUUID(),name:"Shade Garden",purpose:"Low-light perennials",sun:"Part shade",soil:"Clay",description:"A developing section under mature trees."})
       ],
       plantings:[],
       tasks:[],
@@ -1205,27 +1252,58 @@
 
     function loadData(){
       const raw = localStorage.getItem(STORAGE_KEY);
-      if(raw) return JSON.parse(raw);
+      if(raw){
+        // Migration: state written before this version has no `seed`
+        // marker on any record. We DO NOT add `seed:true` to such
+        // records. An unmarked record is treated as authored by the
+        // user; this protects pre-existing observations from being
+        // relabelled as fake data. New seeds written from now on carry
+        // seed:true explicitly (see SEED/markSeed above and the
+        // initial-bootstrap branch below). If a future migration ever
+        // needs to mark unmarked records as seed it must be additive
+        // and gate-checked, never silent.
+        return JSON.parse(raw);
+      }
 
       const data = structuredClone(seedData);
       data.plantings = [
-        {id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix."},
-        {id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties."},
-        {id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting."}
+        markSeed({id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix."}),
+        markSeed({id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties."}),
+        markSeed({id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting."})
       ];
       data.tasks = [
-        {id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false},
-        {id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false},
-        {id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false}
+        markSeed({id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false}),
+        markSeed({id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false}),
+        markSeed({id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false})
       ];
       data.journal = [
-        {id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning."}
+        markSeed({id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning."})
       ];
       saveData(data);
       return data;
     }
 
     let state = loadData();
+
+    /* === Honest-labelling helper ============================================
+     * sampleBadge(record) — returns "" or a small "Sample" badge span.
+     * Used by render* functions to mark demo-seeded records so Roberto can
+     * always tell what's his from what shipped with the app.
+     *
+     * Safety: the visible label is plain element content (not an attribute),
+     * and identity is held in data-sample-id (UUID only). No user-authored
+     * text ever lands in an HTML attribute (Echo closed that hole earlier).
+     * One helper, four call sites; this slice applies it in renderPlantings
+     * only, as proof the mechanism works end-to-end.
+     * ======================================================================== */
+    function sampleBadge(record){
+      if(!record || record.seed !== true) return "";
+      // Visible label is element content; identity is a data-attr holding
+      // a UUID (never user text). The id is escaped via escapeHtml as a
+      // belt-and-braces measure even though UUIDs are safe.
+      return '<span class="sample-badge" data-sample-id="'
+        + escapeHtml(record.id || "") + '">Sample</span>';
+    }
 
     function saveData(data=state){
       localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
@@ -1451,7 +1529,7 @@
       const html = state.plantings.length ? state.plantings.map(p=>`
         <div class="item">
           <div>
-            <h4>${escapeHtml(p.name)} <span class="pill">${escapeHtml(p.status)}</span></h4>
+            <h4>${escapeHtml(p.name)} <span class="pill">${escapeHtml(p.status)}</span>${sampleBadge(p)}</h4>
             <p><strong>${p.quantity}</strong> plants · ${escapeHtml(p.species)} · ${escapeHtml(sectionName(p.sectionId))}</p>
             <p>${escapeHtml(p.notes||"No notes")} ${p.plantDate?`· Planted ${formatDate(p.plantDate)}`:""}</p>
           </div>
@@ -1671,10 +1749,10 @@
     async function resetDemo(){
       const btn = document.getElementById("resetDemoBtn");
       const ok = await window.GardenConfirm.destructive({
-        title: "Reset all demo data?",
-        itemName: "Everything on this device",
-        warning: "This deletes every garden section, planting, task, and journal entry, plus every voice recording. This cannot be undone.",
-        confirmLabel: "Reset everything",
+        title: "Clear all and reload sample data?",
+        itemName: "Every record on this device",
+        warning: "This deletes every section, planting, task, and journal entry you have on this device (sample and your own), plus every voice recording. Fresh sample data will be reloaded afterwards. This cannot be undone.",
+        confirmLabel: "Clear all and reload samples",
       });
       if (!ok) return;
       const audioIds = (state.journal||[]).map(j=>j.audioId).filter(Boolean);
