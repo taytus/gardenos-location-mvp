@@ -264,6 +264,103 @@ async function main() {
     await ctx.close();
   }
 
+  // ============================================ delete handler survives adversarial names
+  // Regression for the attribute-injection hole: previously the item name was
+  // interpolated into an inline onclick="..." attribute, so a name containing
+  // a double quote closed the attribute early, the parser invented junk
+  // attributes, the handler was truncated, and clicking threw "Invalid or
+  // unexpected token". The fix removes the name from markup entirely; this
+  // case seeds an adversarial name and proves the delete button + dialog
+  // behave correctly.
+  section('Delete button survives quotes, brackets, and tags in item names');
+  {
+    const ADVERSARIAL = `My "big"<bed' & roses`;
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage(); attach(page);
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+
+    await page.evaluate((name) => {
+      const key = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(key));
+      s.sections.push({
+        id: 'sec-attack', name: name,
+        description: 'adversarial section', sun: 'full', soil: 'loam',
+      });
+      localStorage.setItem(key, JSON.stringify(s));
+    }, ADVERSARIAL);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.evaluate(() => window.showView && window.showView('garden'));
+    await page.waitForTimeout(700);
+
+    // 1) Button exists and carries the exact attribute set, with nothing invented
+    const btnInfo = await page.evaluate(() => {
+      const btn = document.querySelector('[data-delete-kind="section"][data-delete-id="sec-attack"]');
+      if (!btn) return null;
+      return {
+        attrs: Array.from(btn.attributes).map(a => a.name).sort(),
+        onclick: btn.getAttribute('onclick') || '',
+      };
+    });
+    const EXPECTED_ATTRS = ['class','data-delete-id','data-delete-kind','data-icon','onclick','style','title'];
+    check('delete button exists for seeded section', !!btnInfo);
+    check('button attribute set is exact (no invented attrs from quote injection)',
+      !!btnInfo && JSON.stringify(btnInfo.attrs) === JSON.stringify(EXPECTED_ATTRS),
+      btnInfo ? btnInfo.attrs.join(',') : 'null');
+    check('onclick value is exactly gardenAskDelete(this) — no truncation',
+      !!btnInfo && btnInfo.onclick === 'gardenAskDelete(this)',
+      btnInfo ? btnInfo.onclick : 'null');
+
+    // 2) Click opens the confirm dialog with no page error
+    const errorsBefore = consoleErrors.length;
+    await page.evaluate(() => {
+      const btn = document.querySelector('[data-delete-kind="section"][data-delete-id="sec-attack"]');
+      if (btn) btn.click();
+    });
+    await page.waitForTimeout(900);
+    const dialogOpen = await page.evaluate(() => !!document.querySelector('.swal2-popup, .garden-confirm'));
+    check('click opens the confirm dialog', dialogOpen);
+    const clickErrors = consoleErrors.slice(errorsBefore)
+      .filter(e => !/favicon|404 \(Not Found\)|sw\.js/i.test(e));
+    check('click did not raise a page error', clickErrors.length === 0,
+      clickErrors.slice(0,2).join(' | '));
+
+    // 3) Dialog displays the name correctly, quotes + bracket intact, not double-escaped
+    const dialogText = await page.evaluate(() => {
+      const el = document.querySelector('.garden-confirm__item');
+      return el ? el.textContent : null;
+    });
+    check('dialog shows the section name with quotes + bracket intact (no double-escape)',
+      dialogText === ADVERSARIAL,
+      `got=${JSON.stringify(dialogText)} expected=${JSON.stringify(ADVERSARIAL)}`);
+
+    // 4) Cancel leaves the item present
+    await page.evaluate(() => {
+      const cancel = document.querySelector('.swal2-cancel');
+      if (cancel) cancel.click();
+    });
+    await page.waitForTimeout(600);
+    let st = await readState(page);
+    check('cancel preserves the seeded item',
+      !!st && st.sections.some(s => s.id === 'sec-attack'));
+
+    // 5) Confirm removes it
+    await page.evaluate(() => {
+      const btn = document.querySelector('[data-delete-kind="section"][data-delete-id="sec-attack"]');
+      if (btn) btn.click();
+    });
+    await page.waitForTimeout(700);
+    await page.evaluate(() => {
+      const confirmBtn = document.querySelector('.swal2-confirm');
+      if (confirmBtn) confirmBtn.click();
+    });
+    await page.waitForTimeout(900);
+    st = await readState(page);
+    check('confirm removes the seeded item',
+      !!st && !st.sections.some(s => s.id === 'sec-attack'));
+
+    await ctx.close();
+  }
+
   await browser.close();
 
   const failures = results.filter(r => !r.ok);
