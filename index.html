@@ -478,6 +478,16 @@
       justify-content:space-between;
     }
 
+    .plot > div:nth-child(2){
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:8px;
+      min-width:0;
+    }
+    .plot > div:nth-child(2) .icon-btn{float:none !important}
+
     .plot strong{font-size:16px}
     .plot small{color:var(--muted)}
 
@@ -641,7 +651,7 @@
     @media (max-width:720px){
       .app{display:block}
       aside{display:none}
-      main{padding:18px 16px 90px}
+      main{padding:18px 16px 105px}
       .topbar{align-items:flex-start;flex-direction:column}
       .top-actions{width:100%;justify-content:flex-start}
       h2{font-size:27px}
@@ -649,6 +659,16 @@
       .span-3,.span-4,.span-5,.span-6,.span-7,.span-8,.span-12{grid-column:span 12}
       .form-grid{grid-template-columns:1fr}
       .garden-map{grid-template-columns:1fr}
+      .task{
+        grid-template-columns:auto 1fr;
+        grid-template-rows:auto auto;
+      }
+      .task > input.check{grid-column:1;grid-row:1;align-self:start}
+      .task > div:nth-of-type(1){grid-column:2;grid-row:1;min-width:0}
+      .task > div:nth-of-type(2){
+        grid-column:2;grid-row:2;
+        display:flex;justify-content:flex-end;align-items:center;gap:8px;
+      }
       .mobile-nav{
         display:grid;
         grid-template-columns:repeat(5,1fr);
