@@ -7,6 +7,7 @@
   "use strict";
 
   var CACHE = "gardenos-location-v0.4.1";
+  var PREFIX = "gardenos-location-";
   // The shell: index.html, the manifest, and the directory root. Relative
   // paths because this app lives under /gardenos-location-mvp/ on GitHub
   // Pages — absolute paths would 404 in production.
@@ -39,7 +40,7 @@
       caches.keys().then(function (names) {
         return Promise.all(
           names.map(function (name) {
-            if (name !== CACHE) {
+            if (name.indexOf(PREFIX) === 0 && name !== CACHE) {
               return caches.delete(name);
             }
             return null;
