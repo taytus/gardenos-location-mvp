@@ -1,4 +1,5 @@
 const CACHE = "gardenos-app-v0.4.1";
+const PREFIX = "gardenos-app-";
 // Every runtime asset must be listed here or the app degrades offline in exactly
 // the situation it exists for: standing in a garden with one bar of signal.
 // Rangers are barred from editing this file so parallel work cannot conflict on
@@ -39,7 +40,7 @@ self.addEventListener("activate", function (event) {
   event.waitUntil((async function () {
     const names = await caches.keys();
     await Promise.all(names.map(function (name) {
-      if (name !== CACHE) return caches.delete(name);
+      if (name.startsWith(PREFIX) && name !== CACHE) return caches.delete(name);
       return null;
     }));
     await self.clients.claim();
