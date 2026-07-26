@@ -693,6 +693,10 @@
       .mobile-nav button.active{background:rgba(255,255,255,.12);color:white}
     }
 
+    /* GardenOS section detail (alpha slice) — depth-aware navigation tiles */
+    .section-detail-stat{cursor:pointer}
+    .section-detail-stat:hover{filter:brightness(.97)}
+
     /* GardenOS destructive-confirm dialog (SweetAlert2) */
     .garden-confirm-popup{border-radius:18px;padding:18px 22px 22px}
     .garden-confirm-title{font-size:20px;color:#173222;font-weight:750;margin-bottom:6px}
@@ -839,6 +843,18 @@
         <div class="card">
           <div class="garden-map" id="gardenSections"></div>
         </div>
+      </section>
+
+      <section id="sections" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Garden section</p>
+            <h2 id="sectionDetailName">Section</h2>
+            <p class="subtitle" id="sectionDetailSubtitle"></p>
+          </div>
+          <a href="#/garden" class="btn secondary" data-nav="#/garden" role="link" tabindex="0">← Back to garden</a>
+        </div>
+        <div class="grid" id="sectionDetailBody"></div>
       </section>
 
       <section id="plants" class="view">
@@ -1269,6 +1285,30 @@
       btn.addEventListener("click",()=>showView(btn.dataset.view));
     });
 
+    // ---- Sections-detail activation (alpha → golf) -----------------------
+    // The router's SUPPORTED_VIEWS does not include 'sections' (it only
+    // enumerates the top-level app views), so when the URL is #/sections/:id
+    // the router falls back to the dashboard view. Activate our detail view
+    // manually here; render() already populated its content via
+    // renderSectionDetail() in this same pass.
+    (function activateSectionsView(){
+      function maybeShow(){
+        var h = location.hash || "";
+        if (!/^#\/sections\//.test(h)) return;
+        var sections = document.querySelectorAll('.view');
+        for (var i = 0; i < sections.length; i++) sections[i].classList.remove('active');
+        var v = document.getElementById('sections');
+        if (v) v.classList.add('active');
+        // No nav-btn matches 'sections'; clear any sidebar highlight.
+        var navBtns = document.querySelectorAll('[data-view]');
+        for (var j = 0; j < navBtns.length; j++) navBtns[j].classList.remove('active');
+      }
+      window.addEventListener('hashchange', maybeShow, false);
+      if (window.gardenosRouter && typeof window.gardenosRouter.onNavigate === 'function') {
+        window.gardenosRouter.onNavigate(maybeShow);
+      }
+    })();
+
     // ---- Filtered-listing wiring (alpha) -----------------------------------
     // The router's onNavigate callback fires AFTER render(), which means we
     // can safely post-process the DOM (filtering, chips, empty states).
@@ -1396,6 +1436,7 @@
 
       renderTasks();
       renderSections();
+      renderSectionDetail();
       renderPlantings();
       renderJournal();
       renderRecommendations();
@@ -1430,21 +1471,147 @@
     }
 
     function renderSections(){
-      const html = state.sections.length ? state.sections.map(s=>`
-        <div class="plot">
-          <div>
-            <strong>${escapeHtml(s.name)}</strong>
-            <p class="meta">${escapeHtml(s.description||s.purpose||"Garden section")}</p>
-          </div>
-          <div>
-            <span class="pill">${escapeHtml(s.sun)}</span>
-            <span class="pill">${escapeHtml(s.soil)}</span>
-            <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete section" style="float:right">🗑️</button>
-          </div>
-        </div>`).join("") : `<div class="empty">No garden sections yet.</div>`;
+      const tag = gardenFilterTag();
+      const matchesTag = (s) => !tag || s.sun === tag || s.soil === tag;
 
-      document.getElementById("gardenSections").innerHTML = html;
-      document.getElementById("dashboardMap").innerHTML = html;
+      // Dashboard "Garden overview" tile shows every section, no filter.
+      const dashHtml = state.sections.length
+        ? state.sections.map(sectionCard).join("")
+        : `<div class="empty">No garden sections yet.</div>`;
+      document.getElementById("dashboardMap").innerHTML = dashHtml;
+
+      // Garden view: tag-filtered when ?tag=... is on the URL.
+      const filtered = state.sections.filter(matchesTag);
+      const gardenHtml = filtered.length
+        ? filtered.map(sectionCard).join("")
+        : (tag
+            ? `<div class="empty">No garden sections match &ldquo;${escapeHtml(tag)}&rdquo;. <a href="#/garden" data-nav="#/garden" role="link" tabindex="0">Clear filter</a></div>`
+            : `<div class="empty">No garden sections yet.</div>`);
+
+      // Replace any stale filter chip above the list (sibling of #gardenSections).
+      const container = document.getElementById("gardenSections").parentNode;
+      if (container) {
+        const stale = Array.from(container.children).find(c => c.classList && c.classList.contains("gardenos-listing-chip"));
+        if (stale) stale.remove();
+        if (tag) {
+          const wrap = document.createElement("div");
+          wrap.innerHTML =
+            '<div class="gardenos-listing-chip" style="margin:0 0 12px 0;padding:10px 14px;border-radius:10px;background:rgba(125,180,90,0.18);font-size:13px;display:flex;align-items:center;gap:8px">'
+            + '<span>Filtering by <strong>' + escapeHtml(tag) + '</strong></span>'
+            + '<a href="#/garden" data-nav="#/garden" role="link" tabindex="0" style="margin-left:auto;text-decoration:underline">× clear</a>'
+            + '</div>';
+          container.insertBefore(wrap.firstChild, document.getElementById("gardenSections"));
+        }
+      }
+
+      document.getElementById("gardenSections").innerHTML = gardenHtml;
+    }
+
+    // SAMPLE-BADGE-HOOK: Foxtrot is shipping sampleBadge(record). When it lands,
+    // append it inside sectionCard (next to the sun/soil pills) and inside
+    // renderSectionDetail (next to the section name). Until then, this file
+    // stays import-safe: no badge code is invented here.
+    function sectionCard(s){
+      const sampleBadge = (typeof window.sampleBadge === "function") ? window.sampleBadge(s) : "";
+      return `<div class="plot" data-nav="#/sections/${s.id}" role="link" tabindex="0" aria-label="View ${escapeHtml(s.name)} section" style="cursor:pointer">
+        <div>
+          <strong>${escapeHtml(s.name)}</strong>
+          <p class="meta">${escapeHtml(s.description||s.purpose||"Garden section")}</p>
+        </div>
+        <div>
+          <span class="pill" data-nav="#/garden?tag=${encodeURIComponent(s.sun)}" role="link" tabindex="0" title="Filter by ${escapeHtml(s.sun)}">${escapeHtml(s.sun)}</span>
+          <span class="pill" data-nav="#/garden?tag=${encodeURIComponent(s.soil)}" role="link" tabindex="0" title="Filter by ${escapeHtml(s.soil)}">${escapeHtml(s.soil)}</span>
+          ${sampleBadge}
+          <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete section" style="float:right">🗑️</button>
+        </div>
+      </div>`;
+    }
+
+    // Tag filter is `#/garden?tag=<value>`. A pill's data-nav is the
+    // canonical route for the matching attribute (sun or soil).
+    function gardenFilterTag(){
+      const h = location.hash || "";
+      if (!/^#\/garden(?:\?|$)/.test(h)) return null;
+      const m = h.match(/[?&]tag=([^&]+)/);
+      if (!m) return null;
+      const raw = m[1].replace(/\+/g, " ");
+      try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    }
+
+    function renderSectionDetail(){
+      const view = document.getElementById("sections");
+      const body = document.getElementById("sectionDetailBody");
+      const nameEl = document.getElementById("sectionDetailName");
+      const subtitleEl = document.getElementById("sectionDetailSubtitle");
+      if (!view || !body || !nameEl || !subtitleEl) return;
+
+      const m = (location.hash || "").match(/^#\/sections\/([^?#]+)/);
+      if (!m) return; // not on detail view — nothing to render
+
+      const id = decodeURIComponent(m[1]);
+      const section = state.sections.find(s => s.id === id);
+
+      if (!section) {
+        nameEl.textContent = "Section not found";
+        subtitleEl.textContent = "The garden section you tried to open does not exist.";
+        body.innerHTML = `<div class="card span-12"><div class="empty">This section may have been deleted. <a href="#/garden" data-nav="#/garden" role="link" tabindex="0">Back to garden</a></div></div>`;
+        return;
+      }
+
+      nameEl.textContent = section.name;
+      subtitleEl.textContent = section.purpose || section.description || "Garden section";
+
+      const plantings = state.plantings.filter(p => p.sectionId === section.id);
+      const openTasks = state.tasks.filter(t => t.sectionId === section.id && !t.completed);
+      const observations = state.journal.filter(j => j.sectionId === section.id);
+
+      const sampleBadge = (typeof window.sampleBadge === "function") ? window.sampleBadge(section) : "";
+
+      body.innerHTML = `
+        <div class="card span-12">
+          <div class="section-title">
+            <div>
+              <h3>About this section</h3>
+              <small>${escapeHtml(section.purpose || "Garden section")}</small>
+            </div>
+            <div>${sampleBadge}<span class="pill" data-nav="#/garden?tag=${encodeURIComponent(section.sun)}" role="link" tabindex="0" title="Filter by ${escapeHtml(section.sun)}">${escapeHtml(section.sun)}</span> <span class="pill" data-nav="#/garden?tag=${encodeURIComponent(section.soil)}" role="link" tabindex="0" title="Filter by ${escapeHtml(section.soil)}">${escapeHtml(section.soil)}</span></div>
+          </div>
+          ${section.description ? `<p style="margin:8px 0 0;color:var(--muted);line-height:1.5">${escapeHtml(section.description)}</p>` : ""}
+        </div>
+
+        <div class="card span-4 section-detail-stat" data-nav="#/plants?section=${encodeURIComponent(section.id)}" role="link" tabindex="0" aria-label="View plantings in ${escapeHtml(section.name)}">
+          <div class="metric">
+            <div>
+              <span>Plantings</span>
+              <strong>${plantings.length}</strong>
+              <div class="meta">${plantings.length === 0 ? "No plantings here yet" : (plantings.length === 1 ? "1 planting" : plantings.length + " plantings")}</div>
+            </div>
+            <div class="icon">🌱</div>
+          </div>
+        </div>
+
+        <div class="card span-4 section-detail-stat" data-nav="#/tasks?section=${encodeURIComponent(section.id)}" role="link" tabindex="0" aria-label="View open tasks in ${escapeHtml(section.name)}">
+          <div class="metric">
+            <div>
+              <span>Open tasks</span>
+              <strong>${openTasks.length}</strong>
+              <div class="meta">${openTasks.length === 0 ? "Nothing open here" : (openTasks.length === 1 ? "1 open task" : openTasks.length + " open tasks")}</div>
+            </div>
+            <div class="icon">✅</div>
+          </div>
+        </div>
+
+        <div class="card span-4 section-detail-stat" data-nav="#/journal?section=${encodeURIComponent(section.id)}" role="link" tabindex="0" aria-label="View observations in ${escapeHtml(section.name)}">
+          <div class="metric">
+            <div>
+              <span>Observations</span>
+              <strong>${observations.length}</strong>
+              <div class="meta">${observations.length === 0 ? "No observations here yet" : (observations.length === 1 ? "1 observation" : observations.length + " observations")}</div>
+            </div>
+            <div class="icon">📓</div>
+          </div>
+        </div>
+      `;
     }
 
     function renderPlantings(){
