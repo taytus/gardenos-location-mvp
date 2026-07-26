@@ -374,12 +374,6 @@ async function main() {
   // "seeded plantings show the badge" assertion. With the foxtrot fix the
   // section passes.
   section('Honest-labelling: sample data is marked, user data is not (foxtrot)');
-  // ============================================ Section depth (alpha → golf)
-  // Section cards in Garden overview navigate to a detail view, the detail
-  // view shows real counts and each count links onward, tag pills become
-  // filters, an unknown id shows not-found, and the delete button inside a
-  // card does not navigate.
-  section('Section cards drill into a depth-aware detail view');
   {
     const ctx = await browser.newContext();
     const page = await ctx.newPage(); attach(page);
@@ -519,6 +513,21 @@ async function main() {
     check('legacy planting does NOT show a Sample badge',
       legacyView.hasLegacyBadge === false,
       'legacy-planting-1 must not be marked sample');
+
+    await ctx.close();
+  }
+
+  // ============================================ Section depth (alpha → golf)
+  // Section cards in Garden overview navigate to a detail view, the detail
+  // view shows real counts and each count links onward, tag pills become
+  // filters, an unknown id shows not-found, and the delete button inside a
+  // card does not navigate.
+  section('Section cards drill into a depth-aware detail view');
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage(); attach(page);
+    await page.goto(BASE, { waitUntil: "networkidle" });
+
     const st = await readState(page);
     const seedSection = st && st.sections.find(s => /Butterfly Garden/i.test(s.name));
     check('seed Butterfly Garden section is present',
