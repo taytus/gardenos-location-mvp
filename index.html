@@ -622,18 +622,6 @@
       letter-spacing:-.01em;
     }
 
-    .icon-btn.delete-pending{
-      background:var(--danger);
-      color:white;
-      border-color:var(--danger);
-      animation:pendingPulse 1.2s infinite;
-    }
-
-    @keyframes pendingPulse{
-      0%,100%{box-shadow:0 0 0 0 rgba(182,76,76,.45)}
-      50%{box-shadow:0 0 0 6px rgba(182,76,76,0)}
-    }
-
     .pill.amber.quality-poor{background:#fde2e2;color:#a13a3a}
     .pill.amber.quality-good{background:#fff3d9;color:#8a5a00}
     .pill.quality-excellent{background:#d9efbe;color:#2f6b45}
@@ -683,6 +671,24 @@
         font-size:17px;
       }
       .mobile-nav button.active{background:rgba(255,255,255,.12);color:white}
+    }
+
+    /* GardenOS destructive-confirm dialog (SweetAlert2) */
+    .garden-confirm-popup{border-radius:18px;padding:18px 22px 22px}
+    .garden-confirm-title{font-size:20px;color:#173222;font-weight:750;margin-bottom:6px}
+    .garden-confirm-body{margin:8px 0 14px}
+    .garden-confirm{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+    .garden-confirm__item{
+      background:#fdecec;border:1px solid #f1c4c4;border-radius:12px;
+      color:#7a2222;padding:10px 12px;font-weight:650;width:100%;
+      word-break:break-word;
+    }
+    .garden-confirm__warn{color:#7a2222;font-size:14px;line-height:1.4}
+    .garden-confirm__body{color:#475249;font-size:14px;line-height:1.4}
+    .garden-confirm-confirm{box-shadow:0 6px 18px rgba(182,76,76,.25)}
+    .garden-confirm-cancel{margin-right:8px}
+    @media (max-width:540px){
+      .garden-confirm-popup{width:calc(100vw - 24px)!important;max-width:none!important}
     }
   </style>
 </head>
@@ -1129,6 +1135,9 @@
     </form>
   </dialog>
 
+  <link rel="stylesheet" href="./vendor/sweetalert2.min.css">
+  <script src="./vendor/sweetalert2.min.js"></script>
+  <script src="./js/confirm.js"></script>
   <script src="./voice-gps.js"></script>
   <script>
     if ('serviceWorker' in navigator && window.isSecureContext) {
@@ -1264,6 +1273,20 @@
         .replaceAll("'","&#039;");
     }
 
+    /* Escape a user-supplied string so it is safe to interpolate inside a
+     * single-quoted JS string literal (used in inline onclick handlers). */
+    function escapeJs(text=""){
+      return String(text)
+        .replaceAll("\\","\\\\")
+        .replaceAll("'","\\'")
+        .replaceAll('"','\\"')
+        .replaceAll("\n","\\n")
+        .replaceAll("\r","\\r")
+        .replaceAll("<","\\u003c")
+        .replaceAll(">","\\u003e")
+        .replaceAll("&","\\u0026");
+    }
+
     function render(){
       document.getElementById("dateSubtitle").textContent =
         new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"});
@@ -1303,7 +1326,7 @@
           </div>
           <div>
             <span class="pill ${overdue?"amber":""}">${overdue?"Overdue":formatDate(t.dueDate)}</span>
-            <button class="icon-btn" data-delete-kind="task" data-delete-id="${t.id}" data-icon="🗑️" onclick="confirmDelete(this, deleteTask)" title="Delete" style="margin-left:6px">🗑️</button>
+            <button class="icon-btn" data-delete-kind="task" data-delete-id="${t.id}" data-icon="🗑️" onclick="gardenAskDelete(this, 'task', '${escapeJs(t.title)}')" title="Delete" style="margin-left:6px">🗑️</button>
           </div>
         </div>`;
     }
@@ -1318,7 +1341,7 @@
           <div>
             <span class="pill">${escapeHtml(s.sun)}</span>
             <span class="pill">${escapeHtml(s.soil)}</span>
-            <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="confirmSectionDelete(this)" title="Delete section" style="float:right">🗑️</button>
+            <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="gardenAskDelete(this, 'section', '${escapeJs(s.name)}')" title="Delete section" style="float:right">🗑️</button>
           </div>
         </div>`).join("") : `<div class="empty">No garden sections yet.</div>`;
 
@@ -1335,7 +1358,7 @@
             <p>${escapeHtml(p.notes||"No notes")} ${p.plantDate?`· Planted ${formatDate(p.plantDate)}`:""}</p>
           </div>
           <div class="item-actions">
-            <button class="icon-btn" data-delete-kind="planting" data-delete-id="${p.id}" data-icon="🗑️" onclick="confirmDelete(this, deletePlanting)" title="Delete">🗑️</button>
+            <button class="icon-btn" data-delete-kind="planting" data-delete-id="${p.id}" data-icon="🗑️" onclick="gardenAskDelete(this, 'planting', '${escapeJs(p.name)}')" title="Delete">🗑️</button>
           </div>
         </div>`).join("") : `<div class="empty">No plantings yet.</div>`;
       document.getElementById("plantingList").innerHTML = html;
@@ -1458,6 +1481,53 @@
       saveData(); render();
     }
 
+    /* Single destructive-confirm entry point used by every delete button
+     * and by Reset demo data. Routes to the right delete fn with
+     * item-specific copy and, for journal entries that have audio,
+     * a warning that the voice recording will be lost. */
+    async function gardenAskDelete(btn, kind, itemName, hasAudio) {
+      const id = btn.dataset.deleteId;
+      let title, body, confirmLabel;
+      if (kind === "task") {
+        title = "Delete this task?";
+        confirmLabel = "Delete task";
+      } else if (kind === "planting") {
+        title = "Delete this planting?";
+        body = "Logs about this planting will remain in your journal.";
+        confirmLabel = "Delete planting";
+      } else if (kind === "section") {
+        title = "Delete this garden section?";
+        body = "Tasks, plantings, and journal entries linked to this section will be unassigned, not removed.";
+        confirmLabel = "Delete section";
+      } else if (kind === "journal") {
+        title = "Delete this journal entry?";
+        if (hasAudio) {
+          body = "This entry has a voice note. The recording exists nowhere else and will be permanently deleted.";
+          confirmLabel = "Delete entry and recording";
+        } else {
+          confirmLabel = "Delete entry";
+        }
+      } else if (kind === "reset") {
+        title = "Reset all demo data?";
+        body = "This deletes every garden section, planting, task, and journal entry on this device, plus every voice recording.";
+        confirmLabel = "Reset everything";
+      } else {
+        title = "Delete this item?";
+        confirmLabel = "Delete";
+      }
+      const ok = await window.GardenConfirm.destructive({
+        title: title,
+        itemName: itemName || "this item",
+        warning: body || "",
+        confirmLabel: confirmLabel,
+      });
+      if (!ok) return;
+      if (kind === "task") deleteTask(id);
+      else if (kind === "planting") deletePlanting(id);
+      else if (kind === "section") deleteSection(id);
+      else if (kind === "journal") deleteJournal(id);
+    }
+
     function deleteJournal(id){
       const entry = state.journal.find(j=>j.id===id);
       state.journal = state.journal.filter(j=>j.id!==id);
@@ -1468,9 +1538,6 @@
     }
 
     function deleteSection(id){
-      const hasChildren = state.plantings.some(p=>p.sectionId===id) || state.tasks.some(t=>t.sectionId===id) || state.journal.some(j=>j.sectionId===id);
-      if(hasChildren && !(pendingDelete && pendingDelete.kind === "section" && pendingDelete.id === id)) return;
-      pendingDelete = null;
       state.sections = state.sections.filter(s=>s.id!==id);
       state.plantings.forEach(p=>{if(p.sectionId===id)p.sectionId=""});
       state.tasks.forEach(t=>{if(t.sectionId===id)t.sectionId=""});
@@ -1492,34 +1559,19 @@
       alert("Settings saved.");
     }
 
-    function resetDemo(){
+    async function resetDemo(){
       const btn = document.getElementById("resetDemoBtn");
-      if(!pendingReset){
-        pendingReset = true;
-        if(btn){
-          btn.textContent = "Tap again to confirm reset";
-          btn.classList.add("delete-pending");
-        }
-        setTimeout(()=>{
-          if(pendingReset){
-            pendingReset = false;
-            if(btn && btn.isConnected){
-              btn.textContent = "Reset demo data";
-              btn.classList.remove("delete-pending");
-            }
-          }
-        }, 4000);
-        return;
-      }
-      pendingReset = false;
+      const ok = await window.GardenConfirm.destructive({
+        title: "Reset all demo data?",
+        itemName: "Everything on this device",
+        warning: "This deletes every garden section, planting, task, and journal entry, plus every voice recording. This cannot be undone.",
+        confirmLabel: "Reset everything",
+      });
+      if (!ok) return;
       const audioIds = (state.journal||[]).map(j=>j.audioId).filter(Boolean);
       localStorage.removeItem(STORAGE_KEY);
       if(window.GardenVoice && typeof GardenVoice.deleteAudio === "function"){
         audioIds.forEach(id => { Promise.resolve(GardenVoice.deleteAudio(id)).catch(()=>{}); });
-      }
-      if(btn){
-        btn.textContent = "Reset demo data";
-        btn.classList.remove("delete-pending");
       }
       state = loadData();
       render();
@@ -1537,8 +1589,6 @@
     };
 
     let _activeAudioUrls = [];
-    let pendingDelete = null;
-    let pendingReset = false;
 
     function qualityLabel(accuracyMeters){
       if(accuracyMeters == null) return {label:"Unknown", className:"amber quality-poor"};
@@ -1694,59 +1744,6 @@
       else startVoice();
     }
 
-    function confirmDelete(btn, deleteFn){
-      const kind = btn.dataset.deleteKind;
-      const id = btn.dataset.deleteId;
-      if(pendingDelete && pendingDelete.kind === kind && pendingDelete.id === id){
-        pendingDelete = null;
-        deleteFn(id);
-        return;
-      }
-      pendingDelete = {kind, id};
-      btn.textContent = "Confirm?";
-      btn.classList.add("delete-pending");
-      btn.title = "Tap again to confirm";
-      const orig = btn.dataset.icon || "🗑️";
-      setTimeout(()=>{
-        if(pendingDelete && pendingDelete.kind === kind && pendingDelete.id === id){
-          pendingDelete = null;
-          if(btn.isConnected){
-            btn.textContent = orig;
-            btn.classList.remove("delete-pending");
-            btn.title = "Delete";
-          }
-        }
-      }, 4000);
-    }
-
-    function confirmSectionDelete(btn){
-      const id = btn.dataset.deleteId;
-      const hasChildren = state.plantings.some(p=>p.sectionId===id) || state.tasks.some(t=>t.sectionId===id) || state.journal.some(j=>j.sectionId===id);
-      if(hasChildren){
-        if(pendingDelete && pendingDelete.kind === "section" && pendingDelete.id === id){
-          pendingDelete = null;
-          deleteSection(id);
-          return;
-        }
-        pendingDelete = {kind: "section", id};
-        btn.textContent = "Confirm?";
-        btn.classList.add("delete-pending");
-        btn.title = "Tap again. Linked records become unassigned.";
-        setTimeout(()=>{
-          if(pendingDelete && pendingDelete.kind === "section" && pendingDelete.id === id){
-            pendingDelete = null;
-            if(btn.isConnected){
-              btn.textContent = btn.dataset.icon || "🗑️";
-              btn.classList.remove("delete-pending");
-              btn.title = "Delete section";
-            }
-          }
-        }, 4000);
-        return;
-      }
-      deleteSection(id);
-    }
-
     function attachAudioElements(root){
       _activeAudioUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch(_){} });
       _activeAudioUrls = [];
@@ -1804,7 +1801,7 @@
               <h4>${escapeHtml(j.title)}</h4>
               <div class="meta">${formatDate(j.date)} · ${escapeHtml(sectionName(j.sectionId))}${sourceMeta}</div>
             </div>
-            <button class="icon-btn" data-delete-kind="journal" data-delete-id="${j.id}" data-icon="🗑️" onclick="confirmDelete(this, deleteJournal)" title="Delete">🗑️</button>
+            <button class="icon-btn" data-delete-kind="journal" data-delete-id="${j.id}" data-icon="🗑️" onclick="gardenAskDelete(this, 'journal', '${escapeJs(j.title)}', ${j.audioId ? 'true' : 'false'})" title="Delete">🗑️</button>
           </div>
           ${j.description ? `<p>${escapeHtml(j.description)}</p>` : ""}
           ${audioHtml}
