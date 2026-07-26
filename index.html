@@ -1288,6 +1288,11 @@
     </form>
   </dialog>
 
+  <!-- Sarah recorder: local-dev instrumentation. Streams to localhost:8900 when reachable; degrades silently when not. -->
+  <script>
+    window.__sarahConfig = { gateway: "http://localhost:8900", sessionId: "gardenos-depth-0725-kilo" };
+  </script>
+  <script src="./vendor/sarah-recorder.global.js"></script>
   <link rel="stylesheet" href="./vendor/sweetalert2.min.css">
   <!-- sweetalert2 must precede confirm.js, which throws if the library is absent -->
   <script src="./vendor/sweetalert2.min.js"></script>
