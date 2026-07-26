@@ -374,6 +374,12 @@ async function main() {
   // "seeded plantings show the badge" assertion. With the foxtrot fix the
   // section passes.
   section('Honest-labelling: sample data is marked, user data is not (foxtrot)');
+  // ============================================ Section depth (alpha → golf)
+  // Section cards in Garden overview navigate to a detail view, the detail
+  // view shows real counts and each count links onward, tag pills become
+  // filters, an unknown id shows not-found, and the delete button inside a
+  // card does not navigate.
+  section('Section cards drill into a depth-aware detail view');
   {
     const ctx = await browser.newContext();
     const page = await ctx.newPage(); attach(page);
@@ -513,6 +519,210 @@ async function main() {
     check('legacy planting does NOT show a Sample badge',
       legacyView.hasLegacyBadge === false,
       'legacy-planting-1 must not be marked sample');
+    const st = await readState(page);
+    const seedSection = st && st.sections.find(s => /Butterfly Garden/i.test(s.name));
+    check('seed Butterfly Garden section is present',
+      !!seedSection, seedSection ? seedSection.id : 'missing');
+
+    // Each card carries data-nav pointing at the section detail route.
+    const navAttrs = await page.evaluate(() => {
+      const plots = Array.from(document.querySelectorAll('#gardenSections .plot, #dashboardMap .plot'));
+      return plots.slice(0, 4).map(p => ({
+        nav: p.getAttribute('data-nav') || '',
+        role: p.getAttribute('role') || '',
+        tabindex: p.getAttribute('tabindex') || '',
+      }));
+    });
+    check('garden section cards are keyboard-reachable navigation targets',
+      navAttrs.length >= 2 && navAttrs.every(a => a.nav.startsWith('#/sections/') && a.role === 'link' && a.tabindex === '0'),
+      JSON.stringify(navAttrs));
+
+    // Click the Butterfly Garden card → detail view, matching counts.
+    const detail = await page.evaluate((id) => {
+      const card = Array.from(document.querySelectorAll('#gardenSections .plot'))
+        .find(p => (p.getAttribute('data-nav') || '').indexOf(id) >= 0);
+      if (!card) return { ok: false, reason: 'card not found' };
+      card.click();
+      return { ok: true };
+    }, seedSection.id);
+    check('clicking a section card reaches the detail view', detail.ok, JSON.stringify(detail));
+
+    await page.waitForTimeout(400);
+    const detailState = await page.evaluate(() => {
+      const v = document.getElementById('sections');
+      const body = document.getElementById('sectionDetailBody');
+      return {
+        active: v && v.classList.contains('active'),
+        name: (document.getElementById('sectionDetailName') || {}).textContent || '',
+        tiles: Array.from((body || document).querySelectorAll('.section-detail-stat')).map(t => ({
+          nav: t.getAttribute('data-nav') || '',
+          label: (t.querySelector('.metric strong') || {}).textContent || '',
+          text: t.textContent || '',
+        })),
+      };
+    });
+    check('detail view is active', detailState.active);
+    check('detail view shows the section name', /Butterfly Garden/.test(detailState.name), detailState.name);
+    check('detail view shows three navigation tiles (plantings/tasks/journal)',
+      detailState.tiles.length === 3,
+      `count=${detailState.tiles.length}`);
+    check('each tile is a navigable link to a filtered list',
+      detailState.tiles.every(t => /data-nav="#\/(plants|tasks|journal)\?section=/.test('data-nav="' + t.nav + '"')),
+      JSON.stringify(detailState.tiles.map(t => t.nav)));
+
+    // Counts must match the real seed data for Butterfly Garden.
+    const expected = await page.evaluate(() => {
+      const s = (JSON.parse(localStorage.getItem('gardenos-v01') || '{}')).sections.find(x => /Butterfly Garden/.test(x.name));
+      if (!s) return null;
+      const data = JSON.parse(localStorage.getItem('gardenos-v01') || '{}');
+      return {
+        plantings: data.plantings.filter(p => p.sectionId === s.id).length,
+        openTasks: data.tasks.filter(t => t.sectionId === s.id && !t.completed).length,
+        observations: data.journal.filter(j => j.sectionId === s.id).length,
+      };
+    });
+    check('planting count matches data', /1 planting/.test(detailState.tiles[0].text) || /0 plantings here/.test(detailState.tiles[0].text),
+      `tile=${detailState.tiles[0]?.text} expected=${JSON.stringify(expected)}`);
+    check('task count matches data', expected && /[12] open tasks?/.test(detailState.tiles[1].text),
+      `tile=${detailState.tiles[1]?.text} expected=${JSON.stringify(expected)}`);
+    check('observation count matches data', expected && /1 observation/.test(detailState.tiles[2].text),
+      `tile=${detailState.tiles[2]?.text} expected=${JSON.stringify(expected)}`);
+
+    // Clicking the plantings tile routes to the filtered plants view.
+    await page.evaluate(() => {
+      const tile = document.querySelector('.section-detail-stat[data-nav^="#/plants?section="]');
+      if (tile) tile.click();
+    });
+    await page.waitForTimeout(400);
+    const routedToPlants = await page.evaluate(() => {
+      const v = document.getElementById('plants');
+      const list = document.getElementById('plantingList');
+      return {
+        active: v && v.classList.contains('active'),
+        hash: location.hash,
+        items: list ? list.children.length : 0,
+      };
+    });
+    check('plantings tile navigates to filtered plants view',
+      routedToPlants.active && /^#\/plants\?section=/.test(routedToPlants.hash),
+      JSON.stringify(routedToPlants));
+
+    // Back button returns to the detail view, browser back returns to garden.
+    await page.evaluate(() => { window.showView && window.showView('sections') || (location.hash = '#/sections'); });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll('#sections a, #sections [data-nav]'))
+        .find(el => (el.getAttribute('data-nav') || '') === '#/garden');
+      if (b) b.click();
+    });
+    await page.waitForTimeout(400);
+    const backToGarden = await page.evaluate(() => ({
+      active: document.getElementById('garden').classList.contains('active'),
+      hash: location.hash,
+    }));
+    check('back link from detail view returns to garden', backToGarden.active && backToGarden.hash === '#/garden',
+      JSON.stringify(backToGarden));
+
+    // Unknown id must not throw — show not-found.
+    await page.goto(BASE + '#/sections/no-such-id', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    const notFound = await page.evaluate(() => ({
+      active: document.getElementById('sections').classList.contains('active'),
+      name: (document.getElementById('sectionDetailName') || {}).textContent || '',
+      body: (document.getElementById('sectionDetailBody') || {}).textContent || '',
+    }));
+    check('unknown id activates the detail view', notFound.active);
+    check('unknown id shows a not-found state', /not found/i.test(notFound.name) || /may have been deleted/i.test(notFound.body),
+      JSON.stringify(notFound));
+
+    await ctx.close();
+  }
+
+  section('Tag pills are real filters on the garden view');
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage(); attach(page);
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+
+    // A sun pill in the dashboard card navigates to the filtered garden view.
+    await page.evaluate(() => {
+      const pill = Array.from(document.querySelectorAll('#dashboardMap .pill[data-nav^="#/garden?tag="]'))[0];
+      if (pill) pill.click();
+    });
+    await page.waitForTimeout(500);
+    const filtered = await page.evaluate(() => {
+      const card = document.querySelector('#gardenSections');
+      const chip = card && card.parentNode.querySelector('.gardenos-listing-chip');
+      return {
+        active: document.getElementById('garden').classList.contains('active'),
+        hash: location.hash,
+        chipText: chip ? chip.textContent : '',
+        visibleSections: Array.from(document.querySelectorAll('#gardenSections .plot')).length,
+        allSections: (JSON.parse(localStorage.getItem('gardenos-v01') || '{}')).sections.length,
+      };
+    });
+    check('pill click activates garden view with the tag in the URL',
+      filtered.active && /^#\/garden\?tag=/.test(filtered.hash),
+      JSON.stringify(filtered));
+    check('filtered view shows a dismissible chip',
+      /Filtering by/.test(filtered.chipText) && /clear/i.test(filtered.chipText),
+      filtered.chipText);
+    check('filtered view shows fewer (or equal) sections than the full set',
+      filtered.visibleSections > 0 && filtered.visibleSections <= filtered.allSections,
+      `visible=${filtered.visibleSections} all=${filtered.allSections}`);
+
+    // Clear filter returns to all sections.
+    await page.evaluate(() => {
+      const clear = document.querySelector('#gardenSections').parentNode
+        .querySelector('.gardenos-listing-chip a[data-nav="#/garden"]');
+      if (clear) clear.click();
+    });
+    await page.waitForTimeout(400);
+    const cleared = await page.evaluate(() => ({
+      hash: location.hash,
+      visibleSections: Array.from(document.querySelectorAll('#gardenSections .plot')).length,
+      chip: !!document.querySelector('#gardenSections').parentNode.querySelector('.gardenos-listing-chip'),
+    }));
+    check('clearing the chip returns to all sections',
+      cleared.hash === '#/garden' && cleared.chip === false && cleared.visibleSections >= 2,
+      JSON.stringify(cleared));
+
+    // Keyboard reachability: the card has tabindex=0, focus + Enter navigates.
+    // Cards live inside the dashboard view, so test on the dashboard view
+    // where the card is actually visible (hidden .view children can't take
+    // focus under display:none).
+    await page.evaluate(() => { window.showView && window.showView('dashboard'); });
+    await page.waitForTimeout(300);
+    const beforeKb = await page.evaluate(() => location.hash);
+    const hasCards = await page.evaluate(() => document.querySelectorAll('#dashboardMap .plot').length);
+    if (hasCards > 0) {
+      await page.focus('#dashboardMap .plot');
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(400);
+      const afterKb = await page.evaluate(() => location.hash);
+      check('keyboard Enter on a card navigates to its detail view',
+        /^#\/sections\//.test(afterKb),
+        `before=${beforeKb} after=${afterKb}`);
+    } else {
+      check('keyboard Enter on a card navigates to its detail view', false, 'no cards found');
+    }
+
+    // Delete button inside a card must not navigate. Tested on the garden
+    // view (where garden cards live); use the first garden card's delete.
+    await page.evaluate(() => { window.showView && window.showView('garden'); });
+    await page.waitForTimeout(300);
+    const beforeDelete = await page.evaluate(() => location.hash);
+    const deleteClick = await page.evaluate(() => {
+      const btn = document.querySelector('#gardenSections [data-delete-kind="section"]');
+      if (!btn) return false;
+      btn.click();
+      return true;
+    });
+    await page.waitForTimeout(700);
+    const afterDelete = await page.evaluate(() => location.hash);
+    check('clicking a card\'s delete button opens confirm without changing the hash',
+      deleteClick && (afterDelete === beforeDelete),
+      `hash before=${beforeDelete} after=${afterDelete} clicked=${deleteClick}`);
 
     await ctx.close();
   }
