@@ -311,6 +311,25 @@
       color:#8a5a00;
     }
 
+    /* Honest-labelling badge. Sits next to the item, never replacing it.
+     * Quiet, not decorative. Inline-flex keeps it on the same line as the
+     * .pill chip inside .item h4 without re-flowing the title. */
+    .sample-badge{
+      display:inline-flex;
+      align-items:center;
+      margin-left:6px;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:600;
+      letter-spacing:.03em;
+      background:#eef2ee;
+      color:#516158;
+      border:1px solid var(--line);
+      vertical-align:baseline;
+      line-height:1.4;
+    }
+
     .recommendation{
       padding:16px;
       border-radius:17px;
@@ -329,6 +348,29 @@
       color:#516158;
       line-height:1.5;
       font-size:14px;
+    }
+
+    .recommendation-link{
+      cursor:pointer;
+      transition:transform .12s ease, box-shadow .12s ease;
+    }
+    .recommendation-link:hover,
+    .recommendation-link:focus{
+      outline:none;
+      transform:translateY(-1px);
+      box-shadow:var(--shadow);
+    }
+    .recommendation-link .recommendation-cta{
+      display:block;
+      margin-top:10px;
+      font-size:12px;
+      color:var(--green-dark);
+      font-weight:600;
+    }
+    .recommendation-empty{
+      color:var(--muted);
+      font-style:italic;
+      font-weight:400;
     }
 
     .empty{
@@ -499,6 +541,13 @@
       border-top:1px solid var(--line);
       border-right:1px solid var(--line);
       border-bottom:1px solid var(--line);
+      cursor:pointer;
+      transition:background .12s ease, transform .12s ease;
+    }
+    .journal-entry:hover,
+    .journal-entry:focus{
+      outline:none;
+      background:#f1f7ed;
     }
 
     .journal-entry h4{
@@ -510,6 +559,41 @@
       color:#526057;
       line-height:1.5;
       font-size:14px;
+    }
+
+    .journal-entry-tags{
+      margin-top:12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+
+    .pill-link{
+      cursor:pointer;
+      transition:background .12s ease;
+    }
+    .pill-link:hover,
+    .pill-link:focus{
+      outline:none;
+      background:var(--green-soft);
+      box-shadow:inset 0 0 0 1px var(--green);
+    }
+
+    .journal-entry-sectionlink{
+      cursor:pointer;
+      text-decoration:underline;
+      text-decoration-color:rgba(47,107,69,0.3);
+      text-underline-offset:2px;
+    }
+    .journal-entry-sectionlink:hover,
+    .journal-entry-sectionlink:focus{
+      outline:none;
+      color:var(--green-dark);
+      text-decoration-color:var(--green-dark);
+    }
+
+    .journal-detail-card{
+      padding:20px;
     }
 
     .settings-note{
@@ -693,6 +777,10 @@
       .mobile-nav button.active{background:rgba(255,255,255,.12);color:white}
     }
 
+    /* GardenOS section detail (alpha slice) — depth-aware navigation tiles */
+    .section-detail-stat{cursor:pointer}
+    .section-detail-stat:hover{filter:brightness(.97)}
+
     /* GardenOS destructive-confirm dialog (SweetAlert2) */
     .garden-confirm-popup{border-radius:18px;padding:18px 22px 22px}
     .garden-confirm-title{font-size:20px;color:#173222;font-weight:750;margin-bottom:6px}
@@ -841,6 +929,18 @@
         </div>
       </section>
 
+      <section id="sections" class="view">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Garden section</p>
+            <h2 id="sectionDetailName">Section</h2>
+            <p class="subtitle" id="sectionDetailSubtitle"></p>
+          </div>
+          <a href="#/garden" class="btn secondary" data-nav="#/garden" role="link" tabindex="0">← Back to garden</a>
+        </div>
+        <div class="grid" id="sectionDetailBody"></div>
+      </section>
+
       <section id="plants" class="view">
         <div class="topbar">
           <div>
@@ -891,6 +991,7 @@
         <div class="card">
           <div class="collection" id="journalList"></div>
         </div>
+        <div class="card journal-detail-card" id="journalDetail" hidden></div>
       </section>
 
       <section id="settings" class="view">
@@ -956,8 +1057,11 @@
             <div class="settings-note">
               All records are stored in your browser using localStorage. This makes the prototype immediately testable without accounts, servers, or setup.
             </div>
+            <div class="settings-note">
+              <strong>Careful:</strong> the button below clears <em>every</em> record on this device, the sample data and anything you added yourself, then reloads a fresh set of samples. It does not remove only the samples.
+            </div>
             <div class="modal-foot" style="justify-content:flex-start">
-              <button class="btn danger" id="resetDemoBtn" onclick="resetDemo()">Reset demo data</button>
+              <button class="btn danger" id="resetDemoBtn" onclick="resetDemo()">Clear all and reload sample data</button>
             </div>
           </div>
         </div>
@@ -1176,6 +1280,31 @@
   <script>
     const STORAGE_KEY = "gardenos-v01";
 
+    // Honest-labelling layer: every record created by the demo seed gets
+    // seed:true at the point of creation. Records the user creates are
+    // left unmarked (treated as authored by the user). The sampleBadge
+    // helper below uses this marker to render a small "Sample" badge so
+    // Roberto can always tell what's his from what shipped with the app.
+    //
+    // We use a dedicated `seed` boolean instead of overloading the
+    // existing task `source` field (which the UI picker sets to "User"
+    // / "AI" / "Seasonal" — a different concept about the *category* of
+    // the task, not whether it shipped with the demo).
+    //
+    // Pre-existing installs (state written before this marker existed)
+    // are migrated in loadData(): they are NOT relabelled as samples
+    // because that would insult genuine user observations. An unmarked
+    // record is treated as user-authored; only records explicitly marked
+    // seed:true (now or in the original seed) get the badge.
+    const SEED = true;
+
+    function markSeed(record){
+      if(record && typeof record === "object" && record.seed !== true){
+        record.seed = SEED;
+      }
+      return record;
+    }
+
     const seedData = {
       profile:{
         name:"Roberto",
@@ -1187,10 +1316,10 @@
         preferences:"Annual flowers, pollinator plants, red/white/blue combinations, low maintenance"
       },
       sections:[
-        {id:crypto.randomUUID(),name:"Butterfly Garden",purpose:"Pollinators and summer color",sun:"Full sun",soil:"Loam",description:"A bright pollinator-focused bed near the back fence."},
-        {id:crypto.randomUUID(),name:"Raised Beds",purpose:"Vegetables and herbs",sun:"Full sun",soil:"Loam",description:"Primary food-growing area with two raised beds."},
-        {id:crypto.randomUUID(),name:"Hosta Area",purpose:"Shade foliage",sun:"Shade",soil:"Mixed",description:"Cooler shaded area with established hostas."},
-        {id:crypto.randomUUID(),name:"Shade Garden",purpose:"Low-light perennials",sun:"Part shade",soil:"Clay",description:"A developing section under mature trees."}
+        markSeed({id:crypto.randomUUID(),name:"Butterfly Garden",purpose:"Pollinators and summer color",sun:"Full sun",soil:"Loam",description:"A bright pollinator-focused bed near the back fence."}),
+        markSeed({id:crypto.randomUUID(),name:"Raised Beds",purpose:"Vegetables and herbs",sun:"Full sun",soil:"Loam",description:"Primary food-growing area with two raised beds."}),
+        markSeed({id:crypto.randomUUID(),name:"Hosta Area",purpose:"Shade foliage",sun:"Shade",soil:"Mixed",description:"Cooler shaded area with established hostas."}),
+        markSeed({id:crypto.randomUUID(),name:"Shade Garden",purpose:"Low-light perennials",sun:"Part shade",soil:"Clay",description:"A developing section under mature trees."})
       ],
       plantings:[],
       tasks:[],
@@ -1203,29 +1332,160 @@
       return d.toISOString().slice(0,10);
     }
 
-    function loadData(){
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(raw) return JSON.parse(raw);
+    // === Seed-marker migration (India) =====================================
+    // On installs that already existed before the seed:true marker existed,
+    // no record carries the flag, so the Sample badge shows nothing. This
+    // migration runs ONCE per install. It identifies pre-existing sample
+    // records by exact content fingerprinting against a freshly-built seed
+    // snapshot, and adds seed:true to those records. Any record the user
+    // edited (even one character in any fingerprint field) does not match
+    // and is left alone. The user's audio (in IndexedDB) is never touched.
+    //
+    // Fingerprint field selection (every meaningful field must match):
+    //   Sections  : name, purpose, sun, soil, description (all literal)
+    //   Plantings : name, species, quantity, status, notes.
+    //               plantDate and sectionId excluded: todayISO + UUID, both
+    //               vary per install / per seed.
+    //   Tasks     : title, type, source, description.
+    //               dueDate and sectionId excluded (same reasoning).
+    //   Journal   : title, tags, description.
+    //               date and sectionId excluded (same reasoning).
+    // sectionId is resolved to the section's NAME for both sides so a
+    // planting filed against the user's "Raised Beds" matches a seed
+    // planting filed against the seed's "Raised Beds".
+    //
+    // Safety: the only writes are adding seed:true on matched records. No
+    // delete, no reorder, no rewrite of any other field. IndexedDB is never
+    // read or written. A coincidental match requires the user to have
+    // created a record whose every fingerprint field equals a shipped seed
+    // record; for the "Tomatoes" planting that means name + species +
+    // quantity 8 + status + notes + section name all equal the seed. That
+    // combination is not a plausible accident.
+    //
+    // One-shot: the marker flag (a separate localStorage key) is set after
+    // the first run, so the migration never re-scans on subsequent loads
+    // and cannot re-mark a record the user later edits back into a
+    // coincidental match.
+    const SEED_MIGRATION_FLAG = "gardenos-v01-indiaSeedMigration";
 
+    function seedSnapshot(){
+      // Returns a freshly-built seed object WITHOUT writing to localStorage.
+      // Used by loadData()'s initial bootstrap AND by reconcileSeedMarkers()
+      // for the fingerprint reference, so the seed cannot drift between
+      // the two paths. Generated fields (UUIDs, todayISO dates) are
+      // computed each call and are NOT used as fingerprint fields.
       const data = structuredClone(seedData);
       data.plantings = [
-        {id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix."},
-        {id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties."},
-        {id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting."}
+        {id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix.",seed:true},
+        {id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties.",seed:true},
+        {id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting.",seed:true}
       ];
       data.tasks = [
-        {id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false},
-        {id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false},
-        {id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false}
+        {id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false,seed:true},
+        {id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false,seed:true},
+        {id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false,seed:true}
       ];
       data.journal = [
-        {id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning."}
+        {id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning.",seed:true}
       ];
+      return data;
+    }
+
+    function resolveSectionName(id, state){
+      return (state.sections || []).find(s => s.id === id)?.name || null;
+    }
+
+    function reconcileSeedMarkers(data){
+      const seed = seedSnapshot();
+      // Sections: all fields literal, all required.
+      data.sections.forEach(sec => {
+        if (sec.seed === true) return;
+        if (seed.sections.some(s =>
+            s.name === sec.name && s.purpose === sec.purpose &&
+            s.sun === sec.sun && s.soil === sec.soil &&
+            s.description === sec.description)) {
+          sec.seed = true;
+        }
+      });
+      // Plantings: plantDate (todayISO) and sectionId (UUID) excluded.
+      data.plantings.forEach(p => {
+        if (p.seed === true) return;
+        const pSection = resolveSectionName(p.sectionId, data);
+        if (seed.plantings.some(sp =>
+            sp.name === p.name && sp.species === p.species &&
+            sp.quantity === p.quantity && sp.status === p.status &&
+            sp.notes === p.notes &&
+            resolveSectionName(sp.sectionId, seed) === pSection)) {
+          p.seed = true;
+        }
+      });
+      // Tasks: dueDate (todayISO) and sectionId (UUID) excluded.
+      data.tasks.forEach(t => {
+        if (t.seed === true) return;
+        const tSection = resolveSectionName(t.sectionId, data);
+        if (seed.tasks.some(st =>
+            st.title === t.title && st.type === t.type &&
+            st.source === t.source && st.description === t.description &&
+            resolveSectionName(st.sectionId, seed) === tSection)) {
+          t.seed = true;
+        }
+      });
+      // Journal: date (todayISO) and sectionId (UUID) excluded.
+      data.journal.forEach(j => {
+        if (j.seed === true) return;
+        const jSection = resolveSectionName(j.sectionId, data);
+        if (seed.journal.some(sj =>
+            sj.title === j.title &&
+            JSON.stringify(sj.tags) === JSON.stringify(j.tags || []) &&
+            sj.description === j.description &&
+            resolveSectionName(sj.sectionId, seed) === jSection)) {
+          j.seed = true;
+        }
+      });
+    }
+
+    function loadData(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const data = JSON.parse(raw);
+        // Seed-marker migration (India): run once per install, identify
+        // pre-existing sample records by exact content fingerprint, and
+        // mark them seed:true. Never re-runs after the flag is set, so a
+        // record the user later edits back into a coincidental match
+        // cannot be re-marked.
+        if (!localStorage.getItem(SEED_MIGRATION_FLAG)) {
+          reconcileSeedMarkers(data);
+          localStorage.setItem(SEED_MIGRATION_FLAG, "1");
+          saveData(data);
+        }
+        return data;
+      }
+      const data = seedSnapshot();
       saveData(data);
       return data;
     }
 
     let state = loadData();
+
+    /* === Honest-labelling helper ============================================
+     * sampleBadge(record) — returns "" or a small "Sample" badge span.
+     * Used by render* functions to mark demo-seeded records so Roberto can
+     * always tell what's his from what shipped with the app.
+     *
+     * Safety: the visible label is plain element content (not an attribute),
+     * and identity is held in data-sample-id (UUID only). No user-authored
+     * text ever lands in an HTML attribute (Echo closed that hole earlier).
+     * One helper, four call sites; this slice applies it in renderPlantings
+     * only, as proof the mechanism works end-to-end.
+     * ======================================================================== */
+    function sampleBadge(record){
+      if(!record || record.seed !== true) return "";
+      // Visible label is element content; identity is a data-attr holding
+      // a UUID (never user text). The id is escaped via escapeHtml as a
+      // belt-and-braces measure even though UUIDs are safe.
+      return '<span class="sample-badge" data-sample-id="'
+        + escapeHtml(record.id || "") + '">Sample</span>';
+    }
 
     function saveData(data=state){
       localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
@@ -1268,6 +1528,30 @@
     document.querySelectorAll("[data-view]").forEach(btn=>{
       btn.addEventListener("click",()=>showView(btn.dataset.view));
     });
+
+    // ---- Sections-detail activation (alpha → golf) -----------------------
+    // The router's SUPPORTED_VIEWS does not include 'sections' (it only
+    // enumerates the top-level app views), so when the URL is #/sections/:id
+    // the router falls back to the dashboard view. Activate our detail view
+    // manually here; render() already populated its content via
+    // renderSectionDetail() in this same pass.
+    (function activateSectionsView(){
+      function maybeShow(){
+        var h = location.hash || "";
+        if (!/^#\/sections\//.test(h)) return;
+        var sections = document.querySelectorAll('.view');
+        for (var i = 0; i < sections.length; i++) sections[i].classList.remove('active');
+        var v = document.getElementById('sections');
+        if (v) v.classList.add('active');
+        // No nav-btn matches 'sections'; clear any sidebar highlight.
+        var navBtns = document.querySelectorAll('[data-view]');
+        for (var j = 0; j < navBtns.length; j++) navBtns[j].classList.remove('active');
+      }
+      window.addEventListener('hashchange', maybeShow, false);
+      if (window.gardenosRouter && typeof window.gardenosRouter.onNavigate === 'function') {
+        window.gardenosRouter.onNavigate(maybeShow);
+      }
+    })();
 
     // ---- Filtered-listing wiring (alpha) -----------------------------------
     // The router's onNavigate callback fires AFTER render(), which means we
@@ -1396,6 +1680,7 @@
 
       renderTasks();
       renderSections();
+      renderSectionDetail();
       renderPlantings();
       renderJournal();
       renderRecommendations();
@@ -1430,28 +1715,154 @@
     }
 
     function renderSections(){
-      const html = state.sections.length ? state.sections.map(s=>`
-        <div class="plot">
-          <div>
-            <strong>${escapeHtml(s.name)}</strong>
-            <p class="meta">${escapeHtml(s.description||s.purpose||"Garden section")}</p>
-          </div>
-          <div>
-            <span class="pill">${escapeHtml(s.sun)}</span>
-            <span class="pill">${escapeHtml(s.soil)}</span>
-            <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete section" style="float:right">🗑️</button>
-          </div>
-        </div>`).join("") : `<div class="empty">No garden sections yet.</div>`;
+      const tag = gardenFilterTag();
+      const matchesTag = (s) => !tag || s.sun === tag || s.soil === tag;
 
-      document.getElementById("gardenSections").innerHTML = html;
-      document.getElementById("dashboardMap").innerHTML = html;
+      // Dashboard "Garden overview" tile shows every section, no filter.
+      const dashHtml = state.sections.length
+        ? state.sections.map(sectionCard).join("")
+        : `<div class="empty">No garden sections yet.</div>`;
+      document.getElementById("dashboardMap").innerHTML = dashHtml;
+
+      // Garden view: tag-filtered when ?tag=... is on the URL.
+      const filtered = state.sections.filter(matchesTag);
+      const gardenHtml = filtered.length
+        ? filtered.map(sectionCard).join("")
+        : (tag
+            ? `<div class="empty">No garden sections match &ldquo;${escapeHtml(tag)}&rdquo;. <a href="#/garden" data-nav="#/garden" role="link" tabindex="0">Clear filter</a></div>`
+            : `<div class="empty">No garden sections yet.</div>`);
+
+      // Replace any stale filter chip above the list (sibling of #gardenSections).
+      const container = document.getElementById("gardenSections").parentNode;
+      if (container) {
+        const stale = Array.from(container.children).find(c => c.classList && c.classList.contains("gardenos-listing-chip"));
+        if (stale) stale.remove();
+        if (tag) {
+          const wrap = document.createElement("div");
+          wrap.innerHTML =
+            '<div class="gardenos-listing-chip" style="margin:0 0 12px 0;padding:10px 14px;border-radius:10px;background:rgba(125,180,90,0.18);font-size:13px;display:flex;align-items:center;gap:8px">'
+            + '<span>Filtering by <strong>' + escapeHtml(tag) + '</strong></span>'
+            + '<a href="#/garden" data-nav="#/garden" role="link" tabindex="0" style="margin-left:auto;text-decoration:underline">× clear</a>'
+            + '</div>';
+          container.insertBefore(wrap.firstChild, document.getElementById("gardenSections"));
+        }
+      }
+
+      document.getElementById("gardenSections").innerHTML = gardenHtml;
+    }
+
+    // SAMPLE-BADGE-HOOK: Foxtrot is shipping sampleBadge(record). When it lands,
+    // append it inside sectionCard (next to the sun/soil pills) and inside
+    // renderSectionDetail (next to the section name). Until then, this file
+    // stays import-safe: no badge code is invented here.
+    function sectionCard(s){
+      const sampleBadge = (typeof window.sampleBadge === "function") ? window.sampleBadge(s) : "";
+      return `<div class="plot" data-nav="#/sections/${s.id}" role="link" tabindex="0" aria-label="View ${escapeHtml(s.name)} section" style="cursor:pointer">
+        <div>
+          <strong>${escapeHtml(s.name)}</strong>
+          <p class="meta">${escapeHtml(s.description||s.purpose||"Garden section")}</p>
+        </div>
+        <div>
+          <span class="pill" data-nav="#/garden?tag=${encodeURIComponent(s.sun)}" role="link" tabindex="0" title="Filter by ${escapeHtml(s.sun)}">${escapeHtml(s.sun)}</span>
+          <span class="pill" data-nav="#/garden?tag=${encodeURIComponent(s.soil)}" role="link" tabindex="0" title="Filter by ${escapeHtml(s.soil)}">${escapeHtml(s.soil)}</span>
+          ${sampleBadge}
+          <button class="icon-btn" data-delete-kind="section" data-delete-id="${s.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete section" style="float:right">🗑️</button>
+        </div>
+      </div>`;
+    }
+
+    // Tag filter is `#/garden?tag=<value>`. A pill's data-nav is the
+    // canonical route for the matching attribute (sun or soil).
+    function gardenFilterTag(){
+      const h = location.hash || "";
+      if (!/^#\/garden(?:\?|$)/.test(h)) return null;
+      const m = h.match(/[?&]tag=([^&]+)/);
+      if (!m) return null;
+      const raw = m[1].replace(/\+/g, " ");
+      try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    }
+
+    function renderSectionDetail(){
+      const view = document.getElementById("sections");
+      const body = document.getElementById("sectionDetailBody");
+      const nameEl = document.getElementById("sectionDetailName");
+      const subtitleEl = document.getElementById("sectionDetailSubtitle");
+      if (!view || !body || !nameEl || !subtitleEl) return;
+
+      const m = (location.hash || "").match(/^#\/sections\/([^?#]+)/);
+      if (!m) return; // not on detail view — nothing to render
+
+      const id = decodeURIComponent(m[1]);
+      const section = state.sections.find(s => s.id === id);
+
+      if (!section) {
+        nameEl.textContent = "Section not found";
+        subtitleEl.textContent = "The garden section you tried to open does not exist.";
+        body.innerHTML = `<div class="card span-12"><div class="empty">This section may have been deleted. <a href="#/garden" data-nav="#/garden" role="link" tabindex="0">Back to garden</a></div></div>`;
+        return;
+      }
+
+      nameEl.textContent = section.name;
+      subtitleEl.textContent = section.purpose || section.description || "Garden section";
+
+      const plantings = state.plantings.filter(p => p.sectionId === section.id);
+      const openTasks = state.tasks.filter(t => t.sectionId === section.id && !t.completed);
+      const observations = state.journal.filter(j => j.sectionId === section.id);
+
+      const sampleBadge = (typeof window.sampleBadge === "function") ? window.sampleBadge(section) : "";
+
+      body.innerHTML = `
+        <div class="card span-12">
+          <div class="section-title">
+            <div>
+              <h3>About this section</h3>
+              <small>${escapeHtml(section.purpose || "Garden section")}</small>
+            </div>
+            <div>${sampleBadge}<span class="pill" data-nav="#/garden?tag=${encodeURIComponent(section.sun)}" role="link" tabindex="0" title="Filter by ${escapeHtml(section.sun)}">${escapeHtml(section.sun)}</span> <span class="pill" data-nav="#/garden?tag=${encodeURIComponent(section.soil)}" role="link" tabindex="0" title="Filter by ${escapeHtml(section.soil)}">${escapeHtml(section.soil)}</span></div>
+          </div>
+          ${section.description ? `<p style="margin:8px 0 0;color:var(--muted);line-height:1.5">${escapeHtml(section.description)}</p>` : ""}
+        </div>
+
+        <div class="card span-4 section-detail-stat" data-nav="#/plants?section=${encodeURIComponent(section.id)}" role="link" tabindex="0" aria-label="View plantings in ${escapeHtml(section.name)}">
+          <div class="metric">
+            <div>
+              <span>Plantings</span>
+              <strong>${plantings.length}</strong>
+              <div class="meta">${plantings.length === 0 ? "No plantings here yet" : (plantings.length === 1 ? "1 planting" : plantings.length + " plantings")}</div>
+            </div>
+            <div class="icon">🌱</div>
+          </div>
+        </div>
+
+        <div class="card span-4 section-detail-stat" data-nav="#/tasks?section=${encodeURIComponent(section.id)}" role="link" tabindex="0" aria-label="View open tasks in ${escapeHtml(section.name)}">
+          <div class="metric">
+            <div>
+              <span>Open tasks</span>
+              <strong>${openTasks.length}</strong>
+              <div class="meta">${openTasks.length === 0 ? "Nothing open here" : (openTasks.length === 1 ? "1 open task" : openTasks.length + " open tasks")}</div>
+            </div>
+            <div class="icon">✅</div>
+          </div>
+        </div>
+
+        <div class="card span-4 section-detail-stat" data-nav="#/journal?section=${encodeURIComponent(section.id)}" role="link" tabindex="0" aria-label="View observations in ${escapeHtml(section.name)}">
+          <div class="metric">
+            <div>
+              <span>Observations</span>
+              <strong>${observations.length}</strong>
+              <div class="meta">${observations.length === 0 ? "No observations here yet" : (observations.length === 1 ? "1 observation" : observations.length + " observations")}</div>
+            </div>
+            <div class="icon">📓</div>
+          </div>
+        </div>
+      `;
     }
 
     function renderPlantings(){
       const html = state.plantings.length ? state.plantings.map(p=>`
         <div class="item">
           <div>
-            <h4>${escapeHtml(p.name)} <span class="pill">${escapeHtml(p.status)}</span></h4>
+            <h4>${escapeHtml(p.name)} <span class="pill">${escapeHtml(p.status)}</span>${sampleBadge(p)}</h4>
             <p><strong>${p.quantity}</strong> plants · ${escapeHtml(p.species)} · ${escapeHtml(sectionName(p.sectionId))}</p>
             <p>${escapeHtml(p.notes||"No notes")} ${p.plantDate?`· Planted ${formatDate(p.plantDate)}`:""}</p>
           </div>
@@ -1463,36 +1874,131 @@
     }
 
     function renderJournal(){
-      const entries = [...state.journal].sort((a,b)=>b.date.localeCompare(a.date));
-      const html = entries.length ? entries.map(journalEntryHtml).join("") : `<div class="empty">No observations yet.</div>`;
+      const all = [...state.journal].sort((a,b)=>b.date.localeCompare(a.date));
+      const params = (window.gardenosRouter && typeof window.gardenosRouter.parseParams === "function") ? window.gardenosRouter.parseParams() : {};
+      const tag = params.tag ? String(params.tag).toLowerCase() : "";
+      const match = params.match ? String(params.match).toLowerCase() : "";
+      const entries = all.filter(j => {
+        if (tag) return (j.tags || []).map(t => String(t).toLowerCase()).includes(tag);
+        if (match) return (j.title || "").toLowerCase().includes(match) || (j.description || "").toLowerCase().includes(match);
+        return true;
+      });
+      const filterChip = (tag || match)
+        ? `<div class="gardenos-listing-chip" style="margin:0 0 12px 0;padding:10px 14px;border-radius:10px;background:rgba(125,180,90,0.18);font-size:13px;display:flex;align-items:center;gap:8px"><span>Filtering by <strong>${tag ? "#" + escapeHtml(tag) : escapeHtml(match)}</strong> · ${entries.length} entr${entries.length===1?"y":"ies"}</span><a href="#/journal" data-nav="#/journal" role="link" tabindex="0" style="margin-left:auto;text-decoration:underline">× clear</a></div>`
+        : "";
+      const html = entries.length ? entries.map(journalEntryHtml).join("") : `<div class="empty">${(tag||match) ? 'No observations match this filter. <a href="#/journal" data-nav="#/journal" role="link" tabindex="0">Clear filter</a>' : 'No observations yet.'}</div>`;
       const list = document.getElementById("journalList");
-      list.innerHTML = html;
-      attachAudioElements(list);
+      if (list) {
+        const parent = list.parentNode;
+        if (parent) {
+          let prev = list.previousSibling;
+          while (prev && prev.nodeType !== 1) prev = prev.previousSibling;
+          const existing = (prev && prev.classList && prev.classList.contains("gardenos-listing-chip")) ? prev : null;
+          if (filterChip) {
+            if (existing) { existing.outerHTML = filterChip; }
+            else { parent.insertBefore(document.createRange().createContextualFragment(filterChip).firstChild, list); }
+          } else if (existing) { parent.removeChild(existing); }
+        }
+        list.innerHTML = html;
+        attachAudioElements(list);
+      }
+      renderJournalDetail(all);
+    }
+
+    function renderJournalDetail(allEntries){
+      const host = document.getElementById("journalDetail");
+      const list = document.getElementById("journalList");
+      if (!host) return;
+      const hash = (typeof location !== "undefined") ? location.hash : "";
+      const m = /^#\/journal\/([^?]+)/.exec(hash);
+      if (!m) {
+        host.hidden = true; host.innerHTML = "";
+        if (list) list.hidden = false;
+        return;
+      }
+      const id = decodeURIComponent(m[1]);
+      const entry = (allEntries || state.journal).find(j => j.id === id);
+      if (!entry) {
+        host.hidden = false;
+        host.innerHTML = `<div class="section-title" style="margin-bottom:8px"><h3>Observation not found</h3><a href="#/journal" data-nav="#/journal" role="link" tabindex="0">← Back to journal</a></div><p class="meta">This entry may have been deleted.</p>`;
+        if (list) list.hidden = true;
+        return;
+      }
+      const audioHtml = entry.audioId
+        ? `<div class="journal-audio" onclick="event.stopPropagation()"><audio controls preload="none" data-audio-id="${entry.audioId}"></audio>${(typeof entry.durationMs === "number" && entry.durationMs > 0) ? `<span class="pill">${Math.round(entry.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
+        : "";
+      const locHtml = locationCardHtml(entry);
+      const tagsHtml = (entry.tags && entry.tags.length)
+        ? `<div class="journal-entry-tags" style="margin-top:14px">${entry.tags.map(tag => `<span class="pill pill-link" data-nav="#/journal?tag=${encodeURIComponent(tag)}" role="link" tabindex="0">#${escapeHtml(tag)}</span>`).join(" ")}</div>`
+        : "";
+      const sectionLink = entry.sectionId
+        ? `<a href="#/sections/${encodeURIComponent(entry.sectionId)}" data-nav="#/sections/${encodeURIComponent(entry.sectionId)}" role="link" tabindex="0">${escapeHtml(sectionName(entry.sectionId))}</a>`
+        : escapeHtml(sectionName(entry.sectionId));
+      host.hidden = false;
+      host.innerHTML = `
+        <div class="section-title" style="margin-bottom:8px">
+          <div>
+            <p class="eyebrow">Observation detail</p>
+            <h3>${escapeHtml(entry.title)}</h3>
+            <div class="meta">${formatDate(entry.date)} · filed under ${sectionLink}${(entry.source === "gps") ? " · 🎙 voice" : ""}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <a class="btn secondary" href="#/journal" data-nav="#/journal" role="link" tabindex="0">← Back to journal</a>
+            <button class="icon-btn" data-delete-kind="journal" data-delete-id="${entry.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete">🗑️</button>
+          </div>
+        </div>
+        ${entry.description ? `<p style="white-space:pre-wrap;line-height:1.55;color:#3a4842">${escapeHtml(entry.description)}</p>` : `<p class="meta">No written notes. The observation may have been recorded as voice only.</p>`}
+        ${audioHtml}
+        ${locHtml}
+        ${tagsHtml}
+      `;
+      if (list) list.hidden = true;
+      attachAudioElements(host);
     }
 
     function renderRecommendations(){
       const recs = [];
       const open = state.tasks.filter(t=>!t.completed);
-      const beetles = state.journal.some(j=>j.description.toLowerCase().includes("beetle") || j.title.toLowerCase().includes("beetle"));
+      const beetleEntries = state.journal.filter(j=>j.description.toLowerCase().includes("beetle") || j.title.toLowerCase().includes("beetle"));
       const butterfly = state.sections.find(s=>s.name.toLowerCase().includes("butterfly"));
       const zinnias = state.plantings.find(p=>p.name.toLowerCase().includes("zinnia"));
 
-      if(beetles){
-        recs.push({title:"Continue pest monitoring",text:"Recent journal entries mention beetle activity. Inspect affected plants early in the morning and record whether damage is increasing."});
+      if(beetleEntries.length){
+        recs.push({
+          title:"Continue pest monitoring",
+          text:`${beetleEntries.length} journal entr${beetleEntries.length===1?"y":"ies"} mention beetle activity. Inspect affected plants early in the morning and record whether damage is increasing.`,
+          nav:"#/journal?match=beetle"
+        });
       }
       if(butterfly && zinnias){
-        recs.push({title:"Strengthen the pollinator mix",text:"Your Butterfly Garden already contains zinnias. Adding cosmos or alyssum could extend bloom diversity and support more pollinators."});
+        recs.push({
+          title:"Strengthen the pollinator mix",
+          text:`Your ${butterfly.name} already contains zinnias. Adding cosmos or alyssum could extend bloom diversity and support more pollinators.`,
+          nav:`#/sections/${butterfly.id}`
+        });
       }
       if(open.length>3){
-        recs.push({title:"Prioritize the task queue",text:`You have ${open.length} open tasks. Complete overdue and watering tasks before planning new garden work.`});
+        recs.push({
+          title:"Prioritize the task queue",
+          text:`You have ${open.length} open tasks. Complete overdue and watering tasks before planning new garden work.`,
+          nav:"#/tasks"
+        });
       }
       if(!recs.length){
-        recs.push({title:"Your garden is stable",text:"No immediate patterns require attention. Keep adding observations so GardenOS can build a better history."});
+        recs.push({
+          title:"Your garden is stable",
+          text:"No immediate patterns require attention. Keep adding observations so GardenOS can build a better history.",
+          nav:null
+        });
       }
 
-      document.getElementById("recommendations").innerHTML = recs.slice(0,3).map(r=>`
-        <div class="recommendation"><strong>${r.title}</strong><p>${r.text}</p></div>
-      `).join("");
+      document.getElementById("recommendations").innerHTML = recs.slice(0,3).map(r=>{
+        const body = `<strong>${escapeHtml(r.title)}</strong><p>${escapeHtml(r.text)}</p>`;
+        if(r.nav){
+          return `<div class="recommendation recommendation-link" data-nav="${r.nav}" role="link" tabindex="0"><div>${body}</div><span class="recommendation-cta" aria-hidden="true">View evidence →</span></div>`;
+        }
+        return `<div class="recommendation"><div>${body}</div><span class="recommendation-cta recommendation-empty">No related records yet</span></div>`;
+      }).join("");
     }
 
     function renderProfile(){
@@ -1671,10 +2177,10 @@
     async function resetDemo(){
       const btn = document.getElementById("resetDemoBtn");
       const ok = await window.GardenConfirm.destructive({
-        title: "Reset all demo data?",
-        itemName: "Everything on this device",
-        warning: "This deletes every garden section, planting, task, and journal entry, plus every voice recording. This cannot be undone.",
-        confirmLabel: "Reset everything",
+        title: "Clear all and reload sample data?",
+        itemName: "Every record on this device",
+        warning: "This deletes every section, planting, task, and journal entry you have on this device (sample and your own), plus every voice recording. Fresh sample data will be reloaded afterwards. This cannot be undone.",
+        confirmLabel: "Clear all and reload samples",
       });
       if (!ok) return;
       const audioIds = (state.journal||[]).map(j=>j.audioId).filter(Boolean);
@@ -1896,19 +2402,22 @@
 
     function journalEntryHtml(j){
       const audioHtml = j.audioId
-        ? `<div class="journal-audio"><audio controls preload="none" data-audio-id="${j.audioId}"></audio>${(typeof j.durationMs === "number" && j.durationMs > 0) ? `<span class="pill">${Math.round(j.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
+        ? `<div class="journal-audio" onclick="event.stopPropagation()"><audio controls preload="none" data-audio-id="${j.audioId}"></audio>${(typeof j.durationMs === "number" && j.durationMs > 0) ? `<span class="pill">${Math.round(j.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
         : "";
       const locHtml = locationCardHtml(j);
       const tagsHtml = (j.tags && j.tags.length)
-        ? `<div style="margin-top:10px">${j.tags.map(tag => `<span class="pill">${escapeHtml(tag)}</span>`).join(" ")}</div>`
+        ? `<div class="journal-entry-tags">${j.tags.map(tag => `<span class="pill pill-link" data-nav="#/journal?tag=${encodeURIComponent(tag)}" role="link" tabindex="0">#${escapeHtml(tag)}</span>`).join(" ")}</div>`
         : "";
       const sourceMeta = (j.source === "gps") ? " · 🎙 voice" : "";
+      const sectionLink = j.sectionId
+        ? `<span class="journal-entry-sectionlink" data-nav="#/sections/${encodeURIComponent(j.sectionId)}" role="link" tabindex="0">${escapeHtml(sectionName(j.sectionId))}</span>`
+        : escapeHtml(sectionName(j.sectionId));
       return `
-        <div class="journal-entry">
+        <div class="journal-entry" data-nav="#/journal/${encodeURIComponent(j.id)}" role="link" tabindex="0" data-entry-id="${escapeHtml(j.id)}">
           <div class="section-title" style="margin-bottom:0">
             <div>
               <h4>${escapeHtml(j.title)}</h4>
-              <div class="meta">${formatDate(j.date)} · ${escapeHtml(sectionName(j.sectionId))}${sourceMeta}</div>
+              <div class="meta">${formatDate(j.date)} · ${sectionLink}${sourceMeta}</div>
             </div>
             <button class="icon-btn" data-delete-kind="journal" data-delete-id="${j.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete">🗑️</button>
           </div>
