@@ -735,7 +735,7 @@
     @media (max-width:720px){
       .app{display:block}
       aside{display:none}
-      main{padding:18px 16px 105px}
+      main{padding:18px 16px 120px}
       .topbar{align-items:flex-start;flex-direction:column}
       .top-actions{width:100%;justify-content:flex-start}
       h2{font-size:27px}
@@ -753,28 +753,56 @@
         grid-column:2;grid-row:2;
         display:flex;justify-content:flex-end;align-items:center;gap:8px;
       }
+      /* GardenOS mobile bottom nav — Oasis BottomNav reimplementation.
+         Six destinations in a fixed 74px bar; safe-area padding so it clears
+         the iPhone home indicator. Real <a href="#/..."> so cmd/middle-click
+         still open the URL natively; left-click is intercepted by router.js
+         because every <a> carries data-view + the document-level handler. */
       .mobile-nav{
-        display:grid;
-        grid-template-columns:repeat(5,1fr);
         position:fixed;
-        left:10px;
-        right:10px;
-        bottom:10px;
+        left:0;
+        right:0;
+        bottom:0;
         z-index:20;
+        display:grid;
+        grid-template-columns:repeat(6,1fr);
+        height:74px;
+        padding:6px max(env(safe-area-inset-left), 6px) max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-right), 6px);
         background:rgba(23,50,34,.97);
-        border-radius:18px;
-        padding:8px;
-        box-shadow:0 18px 40px rgba(0,0,0,.2);
+        border-top:1.5px solid rgba(255,255,255,.12);
+        box-shadow:0 -4px 20px rgba(0,0,0,.12);
+        -webkit-backdrop-filter:saturate(140%) blur(8px);
+        backdrop-filter:saturate(140%) blur(8px);
       }
-      .mobile-nav button{
-        border:0;
-        color:#dce6de;
-        background:transparent;
+      .mobile-nav a{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:2px;
+        height:60px;
         border-radius:12px;
-        padding:10px 4px;
-        font-size:17px;
+        color:#dce6de;
+        text-decoration:none;
+        font-size:11px;
+        font-weight:650;
+        letter-spacing:.02em;
+        transition:transform .08s ease;
       }
-      .mobile-nav button.active{background:rgba(255,255,255,.12);color:white}
+      .mobile-nav a:active{transform:scale(.95)}
+      .mobile-nav a .nav-emoji{
+        font-size:20px;
+        line-height:1;
+        font-weight:400;
+      }
+      .mobile-nav a.active{
+        color:#9bd9a8;
+        text-shadow:0 0 6px rgba(155,217,168,.55);
+      }
+      .mobile-nav a.active .nav-emoji{
+        filter:drop-shadow(0 0 4px rgba(155,217,168,.7));
+        font-size:22px;
+      }
     }
 
     /* GardenOS section detail (alpha slice) — depth-aware navigation tiles */
@@ -1070,11 +1098,12 @@
   </div>
 
   <div class="mobile-nav" id="mobileNav">
-    <button class="active" data-view="dashboard">🏡</button>
-    <button data-view="garden">🗺️</button>
-    <button data-view="plants">🌱</button>
-    <button data-view="tasks">✅</button>
-    <button data-view="journal">📓</button>
+    <a href="#/dashboard" data-view="dashboard" class="active"><span class="nav-emoji" aria-hidden="true">🏡</span><span>Today</span></a>
+    <a href="#/garden" data-view="garden"><span class="nav-emoji" aria-hidden="true">🗺️</span><span>Garden</span></a>
+    <a href="#/plants" data-view="plants"><span class="nav-emoji" aria-hidden="true">🌱</span><span>Plants</span></a>
+    <a href="#/tasks" data-view="tasks"><span class="nav-emoji" aria-hidden="true">✅</span><span>Tasks</span></a>
+    <a href="#/journal" data-view="journal"><span class="nav-emoji" aria-hidden="true">📓</span><span>Journal</span></a>
+    <a href="#/settings" data-view="settings"><span class="nav-emoji" aria-hidden="true">⚙️</span><span>Settings</span></a>
   </div>
 
   <dialog id="sectionModal">
