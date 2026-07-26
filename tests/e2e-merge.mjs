@@ -264,6 +264,305 @@ async function main() {
     await ctx.close();
   }
 
+  // ============================================ recommendations drill down to evidence
+  // Hotel slice: each recommendation card must carry data-nav that reaches the
+  // actual matching records. Pest-monitoring recommendation must point at the
+  // journal entries that contain the matched word — not a generic list.
+  section('Recommendation cards drill down to the matching records');
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage(); attach(page);
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+
+    // Seed two journal entries: one with the matched word, one without.
+    await page.evaluate(() => {
+      const key = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(key));
+      const matchId = 'test-match-1';
+      const noMatchId = 'test-nomatch-1';
+      // remove any prior runs
+      s.journal = (s.journal || []).filter(j => j.id !== matchId && j.id !== noMatchId);
+      s.journal.push({
+        id: matchId, title: 'Aphid colony on rose',
+        date: '2026-07-20', sectionId: s.sections[0].id,
+        tags: ['pest', 'aphid'],
+        description: 'No beetle damage observed; aphids are the current pest concern.',
+      });
+      s.journal.push({
+        id: noMatchId, title: 'Watering log',
+        date: '2026-07-21', sectionId: s.sections[1].id,
+        tags: ['watering'],
+        description: 'Deep-watered the tomatoes this morning. No pest activity noted.',
+      });
+      localStorage.setItem(key, JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.evaluate(() => window.showView && window.showView('dashboard'));
+    await page.waitForTimeout(700);
+
+    // 1) Pest-monitoring recommendation exists, carries data-nav, and reaches a list.
+    const recInfo = await page.evaluate(() => {
+      const recs = Array.from(document.querySelectorAll('#recommendations .recommendation'));
+      const pest = recs.find(r => /pest monitoring/i.test(r.textContent || ''));
+      if (!pest) return { found: false };
+      return {
+        found: true,
+        nav: pest.getAttribute('data-nav'),
+        isLink: pest.getAttribute('role') === 'link' && pest.getAttribute('tabindex') === '0',
+      };
+    });
+    check('pest-monitoring recommendation is rendered', recInfo.found);
+    check('pest-monitoring recommendation is keyboard reachable (role+tabindex)',
+      !!recInfo.found && recInfo.isLink);
+    check('pest-monitoring recommendation carries a drill-down data-nav',
+      !!recInfo.found && typeof recInfo.nav === 'string' && recInfo.nav.startsWith('#/journal'),
+      recInfo.nav || 'none');
+
+    // 2) Clicking the recommendation reaches the journal view and shows ONLY matching entries.
+    await page.evaluate(() => {
+      const rec = Array.from(document.querySelectorAll('#recommendations .recommendation'))
+        .find(r => /pest monitoring/i.test(r.textContent || ''));
+      if (rec) rec.click();
+    });
+    await page.waitForTimeout(600);
+    const onJournal = await page.evaluate(() =>
+      document.getElementById('journal')?.classList.contains('active'));
+    check('clicking the recommendation navigates to the journal view', onJournal);
+
+    const reachedMatch = await page.evaluate(() =>
+      !!document.querySelector('.journal-entry[data-entry-id="test-match-1"]'));
+    const didNotReachNoMatch = await page.evaluate(() =>
+      !document.querySelector('.journal-entry[data-entry-id="test-nomatch-1"]'));
+    check('drill-down reaches the entry that contained the matched word', reachedMatch);
+    check('drill-down does NOT reach the entry that had no match', didNotReachNoMatch);
+
+    // 3) The clear-filter chip returns to the full journal.
+    await page.evaluate(() => {
+      const a = document.querySelector('.gardenos-listing-chip a');
+      if (a) a.click();
+    });
+    await page.waitForTimeout(500);
+    const both = await page.evaluate(() =>
+      !!document.querySelector('.journal-entry[data-entry-id="test-match-1"]') &&
+      !!document.querySelector('.journal-entry[data-entry-id="test-nomatch-1"]'));
+    check('clearing the filter returns the full journal list', both);
+
+    // 4) The pollinator recommendation reaches the named section (not a generic landing).
+    const pollinatorInfo = await page.evaluate(() => {
+      const recs = Array.from(document.querySelectorAll('#recommendations .recommendation'));
+      const poll = recs.find(r => /pollinator/i.test(r.textContent || ''));
+      return poll ? poll.getAttribute('data-nav') : null;
+    });
+    check('pollinator recommendation, when present, points at a specific section',
+      pollinatorInfo === null || pollinatorInfo.startsWith('#/sections/'),
+      pollinatorInfo || 'no pollinator rec (acceptable)');
+
+    // 5) The fallback "stable" recommendation does not advertise a drill-down.
+    const fallbackInfo = await page.evaluate(() => {
+      const recs = Array.from(document.querySelectorAll('#recommendations .recommendation'));
+      const fallback = recs.find(r => /stable/i.test(r.textContent || ''));
+      if (!fallback) return null;
+      return {
+        nav: fallback.getAttribute('data-nav'),
+        isLink: fallback.getAttribute('role') === 'link',
+      };
+    });
+    check('"garden is stable" fallback does not promise drill-down it cannot keep',
+      fallbackInfo === null || fallbackInfo.nav === null,
+      fallbackInfo ? `nav=${fallbackInfo.nav}` : 'no fallback rec (acceptable)');
+
+    await ctx.close();
+  }
+
+  // ============================================ journal entries open detail, tags filter
+  // Hotel slice: clicking a journal entry opens its detail view. Tags on an
+  // entry act as filters. Voice note entry still renders its audio element.
+  // Delete still works and does not navigate.
+  section('Journal entries open detail; tags filter; voice still plays');
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage(); attach(page);
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+
+    // Seed a typed journal entry plus a tag we can filter on.
+    await page.evaluate(() => {
+      const key = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(key));
+      s.journal.push({
+        id: 'test-typed-1',
+        title: 'Inspect pollinator bed',
+        date: '2026-07-22',
+        sectionId: s.sections[0].id,
+        tags: ['pollinator', 'inspection'],
+        description: 'Visited the pollinator bed at dusk to count visitors.',
+      });
+      localStorage.setItem(key, JSON.stringify(s));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.evaluate(() => window.showView && window.showView('journal'));
+    await page.waitForTimeout(700);
+
+    // 1) The entry exists, is keyboard reachable, and carries data-nav.
+    const entryInfo = await page.evaluate(() => {
+      const el = document.querySelector('.journal-entry[data-entry-id="test-typed-1"]');
+      if (!el) return null;
+      return {
+        nav: el.getAttribute('data-nav'),
+        role: el.getAttribute('role'),
+        tab: el.getAttribute('tabindex'),
+      };
+    });
+    check('seeded journal entry renders', !!entryInfo);
+    check('seeded journal entry is keyboard reachable', !!entryInfo && entryInfo.role === 'link' && entryInfo.tab === '0');
+    check('seeded journal entry carries data-nav to its detail',
+      !!entryInfo && entryInfo.nav === '#/journal/test-typed-1',
+      entryInfo ? entryInfo.nav : 'none');
+
+    // 2) Click opens the detail view and hides the list.
+    await page.evaluate(() => {
+      const el = document.querySelector('.journal-entry[data-entry-id="test-typed-1"]');
+      if (el) el.click();
+    });
+    await page.waitForTimeout(500);
+    const detail = await page.evaluate(() => {
+      const d = document.getElementById('journalDetail');
+      const l = document.getElementById('journalList');
+      return {
+        detailVisible: d && !d.hidden && /Inspect pollinator bed/.test(d.textContent || ''),
+        listHidden: l && l.hidden === true,
+        backLink: d && !!d.querySelector('a[href="#/journal"]'),
+      };
+    });
+    check('clicking the entry opens its detail', detail.detailVisible);
+    check('detail view hides the list while open', detail.listHidden);
+    check('detail view offers a back link', detail.backLink);
+
+    // 3) Back link returns to the full list.
+    await page.evaluate(() => {
+      const a = document.querySelector('#journalDetail a[href="#/journal"]');
+      if (a) a.click();
+    });
+    await page.waitForTimeout(500);
+    const back = await page.evaluate(() => {
+      const d = document.getElementById('journalDetail');
+      const l = document.getElementById('journalList');
+      return { detailHidden: d && d.hidden, listVisible: l && !l.hidden };
+    });
+    check('back link returns to the full journal list', back.detailHidden && back.listVisible);
+
+    // 4) Tag click filters the list and shows the active-filter chip.
+    await page.evaluate(() => {
+      const tag = document.querySelector('.journal-entry[data-entry-id="test-typed-1"] .pill-link');
+      if (tag) tag.click();
+    });
+    await page.waitForTimeout(500);
+    const filterState = await page.evaluate(() => {
+      const chip = document.querySelector('.gardenos-listing-chip');
+      const entry = document.querySelector('.journal-entry[data-entry-id="test-typed-1"]');
+      // any entry whose tags include "pollinator" should still be in the list
+      const noTagEntry = document.querySelector('.journal-entry[data-entry-id="test-nomatch-2"]');
+      return {
+        chipVisible: !!chip && /pollinator/.test(chip.textContent || ''),
+        seededEntryStillVisible: !!entry,
+      };
+    });
+    check('tag click shows the active-filter chip with the tag name', filterState.chipVisible);
+    check('tag-filtered list still includes entries that carry the tag',
+      filterState.seededEntryStillVisible);
+
+    // 5) Voice-note entry still renders an audio element after these changes.
+    // Seed a journal entry that references a real audio recording in IndexedDB.
+    const audioId = 'test-audio-survives-1';
+    await page.evaluate((aid) => {
+      const key = localStorage.getItem('gardenos-v01') ? 'gardenos-v01' : 'gardenos-v02';
+      const s = JSON.parse(localStorage.getItem(key));
+      s.journal = (s.journal || []).filter(j => j.id !== 'test-voice-1');
+      s.journal.push({
+        id: 'test-voice-1',
+        title: 'Voice note survival check',
+        date: '2026-07-23',
+        sectionId: s.sections[0].id,
+        tags: ['voice'],
+        description: 'A voice note that must survive the navigation rework.',
+        source: 'gps',
+        audioId: aid,
+        durationMs: 1500,
+      });
+      localStorage.setItem(key, JSON.stringify(s));
+      // seed an IndexedDB recording row matching that audioId
+      const open = indexedDB.open('gardenos-audio', 1);
+      open.onupgradeneeded = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains('recordings')) {
+          db.createObjectStore('recordings', { keyPath: 'id' });
+        }
+      };
+      return new Promise((res) => {
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('recordings', 'readwrite');
+          tx.objectStore('recordings').put({
+            id: aid,
+            savedAt: new Date().toISOString(),
+            mimeType: 'audio/webm',
+            durationMs: 1500,
+            blob: new Blob(['x'.repeat(64)], { type: 'audio/webm' }),
+          });
+          tx.oncomplete = () => res(true);
+          tx.onerror = () => res(false);
+        };
+      });
+    }, audioId);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.evaluate(() => window.showView && window.showView('journal'));
+    await page.waitForTimeout(900);
+
+    const audioInfo = await page.evaluate(() => {
+      const audios = Array.from(document.querySelectorAll('.journal-entry audio[data-audio-id]'));
+      const ours = audios.find(a => a.getAttribute('data-audio-id') === 'test-audio-survives-1');
+      return {
+        count: audios.length,
+        ourRendered: !!ours,
+        ourSrcAfterAttach: ours ? (ours.src || '').slice(0, 16) : '',
+      };
+    });
+    check('journal entry with audioId still renders an <audio> element',
+      audioInfo.ourRendered, `count=${audioInfo.count} src=${audioInfo.ourSrcAfterAttach}`);
+    // Give the async attach a moment, then verify the audio got its blob: URL.
+    await page.waitForTimeout(700);
+    const audioSrc = await page.evaluate(() => {
+      const a = document.querySelector('.journal-entry audio[data-audio-id="test-audio-survives-1"]');
+      return a ? a.src : '';
+    });
+    check('audio element receives a blob: URL after attachAudioElements',
+      audioSrc.startsWith('blob:'), audioSrc.slice(0, 24));
+
+    // 6) Delete button still works and does NOT navigate to the detail view.
+    await page.evaluate(async () => {
+      const btn = document.querySelector('.journal-entry[data-entry-id="test-typed-1"] [data-delete-kind="journal"]');
+      if (!btn) return;
+      btn.click();
+      await new Promise(r => setTimeout(r, 400));
+      const confirmBtn = document.querySelector('.swal2-confirm');
+      if (confirmBtn) confirmBtn.click();
+    });
+    await page.waitForTimeout(900);
+    const stillOnList = await page.evaluate(() => {
+      const d = document.getElementById('journalDetail');
+      const l = document.getElementById('journalList');
+      const entry = document.querySelector('.journal-entry[data-entry-id="test-typed-1"]');
+      return {
+        detailHidden: d && d.hidden,
+        listVisible: l && !l.hidden,
+        entryRemoved: !entry,
+      };
+    });
+    check('delete does not navigate into the detail view', stillOnList.detailHidden && stillOnList.listVisible);
+    check('delete removes the entry from the list', stillOnList.entryRemoved);
+
+    await ctx.close();
+  }
+
   // ============================================ delete handler survives adversarial names
   // Regression for the attribute-injection hole: previously the item name was
   // interpolated into an inline onclick="..." attribute, so a name containing

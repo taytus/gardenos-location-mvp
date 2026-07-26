@@ -331,6 +331,29 @@
       font-size:14px;
     }
 
+    .recommendation-link{
+      cursor:pointer;
+      transition:transform .12s ease, box-shadow .12s ease;
+    }
+    .recommendation-link:hover,
+    .recommendation-link:focus{
+      outline:none;
+      transform:translateY(-1px);
+      box-shadow:var(--shadow);
+    }
+    .recommendation-link .recommendation-cta{
+      display:block;
+      margin-top:10px;
+      font-size:12px;
+      color:var(--green-dark);
+      font-weight:600;
+    }
+    .recommendation-empty{
+      color:var(--muted);
+      font-style:italic;
+      font-weight:400;
+    }
+
     .empty{
       padding:26px 16px;
       text-align:center;
@@ -499,6 +522,13 @@
       border-top:1px solid var(--line);
       border-right:1px solid var(--line);
       border-bottom:1px solid var(--line);
+      cursor:pointer;
+      transition:background .12s ease, transform .12s ease;
+    }
+    .journal-entry:hover,
+    .journal-entry:focus{
+      outline:none;
+      background:#f1f7ed;
     }
 
     .journal-entry h4{
@@ -510,6 +540,41 @@
       color:#526057;
       line-height:1.5;
       font-size:14px;
+    }
+
+    .journal-entry-tags{
+      margin-top:12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+
+    .pill-link{
+      cursor:pointer;
+      transition:background .12s ease;
+    }
+    .pill-link:hover,
+    .pill-link:focus{
+      outline:none;
+      background:var(--green-soft);
+      box-shadow:inset 0 0 0 1px var(--green);
+    }
+
+    .journal-entry-sectionlink{
+      cursor:pointer;
+      text-decoration:underline;
+      text-decoration-color:rgba(47,107,69,0.3);
+      text-underline-offset:2px;
+    }
+    .journal-entry-sectionlink:hover,
+    .journal-entry-sectionlink:focus{
+      outline:none;
+      color:var(--green-dark);
+      text-decoration-color:var(--green-dark);
+    }
+
+    .journal-detail-card{
+      padding:20px;
     }
 
     .settings-note{
@@ -891,6 +956,7 @@
         <div class="card">
           <div class="collection" id="journalList"></div>
         </div>
+        <div class="card journal-detail-card" id="journalDetail" hidden></div>
       </section>
 
       <section id="settings" class="view">
@@ -1203,24 +1269,135 @@
       return d.toISOString().slice(0,10);
     }
 
-    function loadData(){
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(raw) return JSON.parse(raw);
+    // === Seed-marker migration (India) =====================================
+    // On installs that already existed before the seed:true marker existed,
+    // no record carries the flag, so the Sample badge shows nothing. This
+    // migration runs ONCE per install. It identifies pre-existing sample
+    // records by exact content fingerprinting against a freshly-built seed
+    // snapshot, and adds seed:true to those records. Any record the user
+    // edited (even one character in any fingerprint field) does not match
+    // and is left alone. The user's audio (in IndexedDB) is never touched.
+    //
+    // Fingerprint field selection (every meaningful field must match):
+    //   Sections  : name, purpose, sun, soil, description (all literal)
+    //   Plantings : name, species, quantity, status, notes.
+    //               plantDate and sectionId excluded: todayISO + UUID, both
+    //               vary per install / per seed.
+    //   Tasks     : title, type, source, description.
+    //               dueDate and sectionId excluded (same reasoning).
+    //   Journal   : title, tags, description.
+    //               date and sectionId excluded (same reasoning).
+    // sectionId is resolved to the section's NAME for both sides so a
+    // planting filed against the user's "Raised Beds" matches a seed
+    // planting filed against the seed's "Raised Beds".
+    //
+    // Safety: the only writes are adding seed:true on matched records. No
+    // delete, no reorder, no rewrite of any other field. IndexedDB is never
+    // read or written. A coincidental match requires the user to have
+    // created a record whose every fingerprint field equals a shipped seed
+    // record; for the "Tomatoes" planting that means name + species +
+    // quantity 8 + status + notes + section name all equal the seed. That
+    // combination is not a plausible accident.
+    //
+    // One-shot: the marker flag (a separate localStorage key) is set after
+    // the first run, so the migration never re-scans on subsequent loads
+    // and cannot re-mark a record the user later edits back into a
+    // coincidental match.
+    const SEED_MIGRATION_FLAG = "gardenos-v01-indiaSeedMigration";
 
+    function seedSnapshot(){
+      // Returns a freshly-built seed object WITHOUT writing to localStorage.
+      // Used by loadData()'s initial bootstrap AND by reconcileSeedMarkers()
+      // for the fingerprint reference, so the seed cannot drift between
+      // the two paths. Generated fields (UUIDs, todayISO dates) are
+      // computed each call and are NOT used as fingerprint fields.
       const data = structuredClone(seedData);
       data.plantings = [
-        {id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix."},
-        {id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties."},
-        {id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting."}
+        {id:crypto.randomUUID(),name:"Zinnias Summer Mix",species:"Zinnia elegans",quantity:50,sectionId:data.sections[0].id,status:"Growing",plantDate:todayISO(-45),notes:"Red, white, and blue mix.",seed:true},
+        {id:crypto.randomUUID(),name:"Tomatoes",species:"Solanum lycopersicum",quantity:8,sectionId:data.sections[1].id,status:"Growing",plantDate:todayISO(-38),notes:"Mixed slicing varieties.",seed:true},
+        {id:crypto.randomUUID(),name:"Hosta Group",species:"Hosta spp.",quantity:12,sectionId:data.sections[2].id,status:"Growing",plantDate:todayISO(-300),notes:"Established shade planting.",seed:true}
       ];
       data.tasks = [
-        {id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false},
-        {id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false},
-        {id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false}
+        {id:crypto.randomUUID(),title:"Water raised beds",type:"Watering",dueDate:todayISO(),source:"User",sectionId:data.sections[1].id,description:"Deep watering before afternoon heat.",completed:false,seed:true},
+        {id:crypto.randomUUID(),title:"Inspect zinnias for beetle damage",type:"Inspection",dueDate:todayISO(),source:"AI",sectionId:data.sections[0].id,description:"Check upper leaves and flowers.",completed:false,seed:true},
+        {id:crypto.randomUUID(),title:"Add mulch around tomatoes",type:"Maintenance",dueDate:todayISO(2),source:"Seasonal",sectionId:data.sections[1].id,description:"Apply a thin layer while keeping stems clear.",completed:false,seed:true}
       ];
       data.journal = [
-        {id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning."}
+        {id:crypto.randomUUID(),title:"Japanese beetle damage",date:todayISO(-2),sectionId:data.sections[0].id,tags:["pest","beetle"],description:"Several zinnia leaves show skeletonized damage. Beetles were visible in the morning.",seed:true}
       ];
+      return data;
+    }
+
+    function resolveSectionName(id, state){
+      return (state.sections || []).find(s => s.id === id)?.name || null;
+    }
+
+    function reconcileSeedMarkers(data){
+      const seed = seedSnapshot();
+      // Sections: all fields literal, all required.
+      data.sections.forEach(sec => {
+        if (sec.seed === true) return;
+        if (seed.sections.some(s =>
+            s.name === sec.name && s.purpose === sec.purpose &&
+            s.sun === sec.sun && s.soil === sec.soil &&
+            s.description === sec.description)) {
+          sec.seed = true;
+        }
+      });
+      // Plantings: plantDate (todayISO) and sectionId (UUID) excluded.
+      data.plantings.forEach(p => {
+        if (p.seed === true) return;
+        const pSection = resolveSectionName(p.sectionId, data);
+        if (seed.plantings.some(sp =>
+            sp.name === p.name && sp.species === p.species &&
+            sp.quantity === p.quantity && sp.status === p.status &&
+            sp.notes === p.notes &&
+            resolveSectionName(sp.sectionId, seed) === pSection)) {
+          p.seed = true;
+        }
+      });
+      // Tasks: dueDate (todayISO) and sectionId (UUID) excluded.
+      data.tasks.forEach(t => {
+        if (t.seed === true) return;
+        const tSection = resolveSectionName(t.sectionId, data);
+        if (seed.tasks.some(st =>
+            st.title === t.title && st.type === t.type &&
+            st.source === t.source && st.description === t.description &&
+            resolveSectionName(st.sectionId, seed) === tSection)) {
+          t.seed = true;
+        }
+      });
+      // Journal: date (todayISO) and sectionId (UUID) excluded.
+      data.journal.forEach(j => {
+        if (j.seed === true) return;
+        const jSection = resolveSectionName(j.sectionId, data);
+        if (seed.journal.some(sj =>
+            sj.title === j.title &&
+            JSON.stringify(sj.tags) === JSON.stringify(j.tags || []) &&
+            sj.description === j.description &&
+            resolveSectionName(sj.sectionId, seed) === jSection)) {
+          j.seed = true;
+        }
+      });
+    }
+
+    function loadData(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const data = JSON.parse(raw);
+        // Seed-marker migration (India): run once per install, identify
+        // pre-existing sample records by exact content fingerprint, and
+        // mark them seed:true. Never re-runs after the flag is set, so a
+        // record the user later edits back into a coincidental match
+        // cannot be re-marked.
+        if (!localStorage.getItem(SEED_MIGRATION_FLAG)) {
+          reconcileSeedMarkers(data);
+          localStorage.setItem(SEED_MIGRATION_FLAG, "1");
+          saveData(data);
+        }
+        return data;
+      }
+      const data = seedSnapshot();
       saveData(data);
       return data;
     }
@@ -1463,36 +1640,131 @@
     }
 
     function renderJournal(){
-      const entries = [...state.journal].sort((a,b)=>b.date.localeCompare(a.date));
-      const html = entries.length ? entries.map(journalEntryHtml).join("") : `<div class="empty">No observations yet.</div>`;
+      const all = [...state.journal].sort((a,b)=>b.date.localeCompare(a.date));
+      const params = (window.gardenosRouter && typeof window.gardenosRouter.parseParams === "function") ? window.gardenosRouter.parseParams() : {};
+      const tag = params.tag ? String(params.tag).toLowerCase() : "";
+      const match = params.match ? String(params.match).toLowerCase() : "";
+      const entries = all.filter(j => {
+        if (tag) return (j.tags || []).map(t => String(t).toLowerCase()).includes(tag);
+        if (match) return (j.title || "").toLowerCase().includes(match) || (j.description || "").toLowerCase().includes(match);
+        return true;
+      });
+      const filterChip = (tag || match)
+        ? `<div class="gardenos-listing-chip" style="margin:0 0 12px 0;padding:10px 14px;border-radius:10px;background:rgba(125,180,90,0.18);font-size:13px;display:flex;align-items:center;gap:8px"><span>Filtering by <strong>${tag ? "#" + escapeHtml(tag) : escapeHtml(match)}</strong> · ${entries.length} entr${entries.length===1?"y":"ies"}</span><a href="#/journal" data-nav="#/journal" role="link" tabindex="0" style="margin-left:auto;text-decoration:underline">× clear</a></div>`
+        : "";
+      const html = entries.length ? entries.map(journalEntryHtml).join("") : `<div class="empty">${(tag||match) ? 'No observations match this filter. <a href="#/journal" data-nav="#/journal" role="link" tabindex="0">Clear filter</a>' : 'No observations yet.'}</div>`;
       const list = document.getElementById("journalList");
-      list.innerHTML = html;
-      attachAudioElements(list);
+      if (list) {
+        const parent = list.parentNode;
+        if (parent) {
+          let prev = list.previousSibling;
+          while (prev && prev.nodeType !== 1) prev = prev.previousSibling;
+          const existing = (prev && prev.classList && prev.classList.contains("gardenos-listing-chip")) ? prev : null;
+          if (filterChip) {
+            if (existing) { existing.outerHTML = filterChip; }
+            else { parent.insertBefore(document.createRange().createContextualFragment(filterChip).firstChild, list); }
+          } else if (existing) { parent.removeChild(existing); }
+        }
+        list.innerHTML = html;
+        attachAudioElements(list);
+      }
+      renderJournalDetail(all);
+    }
+
+    function renderJournalDetail(allEntries){
+      const host = document.getElementById("journalDetail");
+      const list = document.getElementById("journalList");
+      if (!host) return;
+      const hash = (typeof location !== "undefined") ? location.hash : "";
+      const m = /^#\/journal\/([^?]+)/.exec(hash);
+      if (!m) {
+        host.hidden = true; host.innerHTML = "";
+        if (list) list.hidden = false;
+        return;
+      }
+      const id = decodeURIComponent(m[1]);
+      const entry = (allEntries || state.journal).find(j => j.id === id);
+      if (!entry) {
+        host.hidden = false;
+        host.innerHTML = `<div class="section-title" style="margin-bottom:8px"><h3>Observation not found</h3><a href="#/journal" data-nav="#/journal" role="link" tabindex="0">← Back to journal</a></div><p class="meta">This entry may have been deleted.</p>`;
+        if (list) list.hidden = true;
+        return;
+      }
+      const audioHtml = entry.audioId
+        ? `<div class="journal-audio" onclick="event.stopPropagation()"><audio controls preload="none" data-audio-id="${entry.audioId}"></audio>${(typeof entry.durationMs === "number" && entry.durationMs > 0) ? `<span class="pill">${Math.round(entry.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
+        : "";
+      const locHtml = locationCardHtml(entry);
+      const tagsHtml = (entry.tags && entry.tags.length)
+        ? `<div class="journal-entry-tags" style="margin-top:14px">${entry.tags.map(tag => `<span class="pill pill-link" data-nav="#/journal?tag=${encodeURIComponent(tag)}" role="link" tabindex="0">#${escapeHtml(tag)}</span>`).join(" ")}</div>`
+        : "";
+      const sectionLink = entry.sectionId
+        ? `<a href="#/sections/${encodeURIComponent(entry.sectionId)}" data-nav="#/sections/${encodeURIComponent(entry.sectionId)}" role="link" tabindex="0">${escapeHtml(sectionName(entry.sectionId))}</a>`
+        : escapeHtml(sectionName(entry.sectionId));
+      host.hidden = false;
+      host.innerHTML = `
+        <div class="section-title" style="margin-bottom:8px">
+          <div>
+            <p class="eyebrow">Observation detail</p>
+            <h3>${escapeHtml(entry.title)}</h3>
+            <div class="meta">${formatDate(entry.date)} · filed under ${sectionLink}${(entry.source === "gps") ? " · 🎙 voice" : ""}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <a class="btn secondary" href="#/journal" data-nav="#/journal" role="link" tabindex="0">← Back to journal</a>
+            <button class="icon-btn" data-delete-kind="journal" data-delete-id="${entry.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete">🗑️</button>
+          </div>
+        </div>
+        ${entry.description ? `<p style="white-space:pre-wrap;line-height:1.55;color:#3a4842">${escapeHtml(entry.description)}</p>` : `<p class="meta">No written notes. The observation may have been recorded as voice only.</p>`}
+        ${audioHtml}
+        ${locHtml}
+        ${tagsHtml}
+      `;
+      if (list) list.hidden = true;
+      attachAudioElements(host);
     }
 
     function renderRecommendations(){
       const recs = [];
       const open = state.tasks.filter(t=>!t.completed);
-      const beetles = state.journal.some(j=>j.description.toLowerCase().includes("beetle") || j.title.toLowerCase().includes("beetle"));
+      const beetleEntries = state.journal.filter(j=>j.description.toLowerCase().includes("beetle") || j.title.toLowerCase().includes("beetle"));
       const butterfly = state.sections.find(s=>s.name.toLowerCase().includes("butterfly"));
       const zinnias = state.plantings.find(p=>p.name.toLowerCase().includes("zinnia"));
 
-      if(beetles){
-        recs.push({title:"Continue pest monitoring",text:"Recent journal entries mention beetle activity. Inspect affected plants early in the morning and record whether damage is increasing."});
+      if(beetleEntries.length){
+        recs.push({
+          title:"Continue pest monitoring",
+          text:`${beetleEntries.length} journal entr${beetleEntries.length===1?"y":"ies"} mention beetle activity. Inspect affected plants early in the morning and record whether damage is increasing.`,
+          nav:"#/journal?match=beetle"
+        });
       }
       if(butterfly && zinnias){
-        recs.push({title:"Strengthen the pollinator mix",text:"Your Butterfly Garden already contains zinnias. Adding cosmos or alyssum could extend bloom diversity and support more pollinators."});
+        recs.push({
+          title:"Strengthen the pollinator mix",
+          text:`Your ${butterfly.name} already contains zinnias. Adding cosmos or alyssum could extend bloom diversity and support more pollinators.`,
+          nav:`#/sections/${butterfly.id}`
+        });
       }
       if(open.length>3){
-        recs.push({title:"Prioritize the task queue",text:`You have ${open.length} open tasks. Complete overdue and watering tasks before planning new garden work.`});
+        recs.push({
+          title:"Prioritize the task queue",
+          text:`You have ${open.length} open tasks. Complete overdue and watering tasks before planning new garden work.`,
+          nav:"#/tasks"
+        });
       }
       if(!recs.length){
-        recs.push({title:"Your garden is stable",text:"No immediate patterns require attention. Keep adding observations so GardenOS can build a better history."});
+        recs.push({
+          title:"Your garden is stable",
+          text:"No immediate patterns require attention. Keep adding observations so GardenOS can build a better history.",
+          nav:null
+        });
       }
 
-      document.getElementById("recommendations").innerHTML = recs.slice(0,3).map(r=>`
-        <div class="recommendation"><strong>${r.title}</strong><p>${r.text}</p></div>
-      `).join("");
+      document.getElementById("recommendations").innerHTML = recs.slice(0,3).map(r=>{
+        const body = `<strong>${escapeHtml(r.title)}</strong><p>${escapeHtml(r.text)}</p>`;
+        if(r.nav){
+          return `<div class="recommendation recommendation-link" data-nav="${r.nav}" role="link" tabindex="0"><div>${body}</div><span class="recommendation-cta" aria-hidden="true">View evidence →</span></div>`;
+        }
+        return `<div class="recommendation"><div>${body}</div><span class="recommendation-cta recommendation-empty">No related records yet</span></div>`;
+      }).join("");
     }
 
     function renderProfile(){
@@ -1896,19 +2168,22 @@
 
     function journalEntryHtml(j){
       const audioHtml = j.audioId
-        ? `<div class="journal-audio"><audio controls preload="none" data-audio-id="${j.audioId}"></audio>${(typeof j.durationMs === "number" && j.durationMs > 0) ? `<span class="pill">${Math.round(j.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
+        ? `<div class="journal-audio" onclick="event.stopPropagation()"><audio controls preload="none" data-audio-id="${j.audioId}"></audio>${(typeof j.durationMs === "number" && j.durationMs > 0) ? `<span class="pill">${Math.round(j.durationMs/1000)} s</span>` : ""}<span class="pill">voice</span></div>`
         : "";
       const locHtml = locationCardHtml(j);
       const tagsHtml = (j.tags && j.tags.length)
-        ? `<div style="margin-top:10px">${j.tags.map(tag => `<span class="pill">${escapeHtml(tag)}</span>`).join(" ")}</div>`
+        ? `<div class="journal-entry-tags">${j.tags.map(tag => `<span class="pill pill-link" data-nav="#/journal?tag=${encodeURIComponent(tag)}" role="link" tabindex="0">#${escapeHtml(tag)}</span>`).join(" ")}</div>`
         : "";
       const sourceMeta = (j.source === "gps") ? " · 🎙 voice" : "";
+      const sectionLink = j.sectionId
+        ? `<span class="journal-entry-sectionlink" data-nav="#/sections/${encodeURIComponent(j.sectionId)}" role="link" tabindex="0">${escapeHtml(sectionName(j.sectionId))}</span>`
+        : escapeHtml(sectionName(j.sectionId));
       return `
-        <div class="journal-entry">
+        <div class="journal-entry" data-nav="#/journal/${encodeURIComponent(j.id)}" role="link" tabindex="0" data-entry-id="${escapeHtml(j.id)}">
           <div class="section-title" style="margin-bottom:0">
             <div>
               <h4>${escapeHtml(j.title)}</h4>
-              <div class="meta">${formatDate(j.date)} · ${escapeHtml(sectionName(j.sectionId))}${sourceMeta}</div>
+              <div class="meta">${formatDate(j.date)} · ${sectionLink}${sourceMeta}</div>
             </div>
             <button class="icon-btn" data-delete-kind="journal" data-delete-id="${j.id}" data-icon="🗑️" onclick="gardenAskDelete(this)" title="Delete">🗑️</button>
           </div>
