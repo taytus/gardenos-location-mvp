@@ -71,6 +71,7 @@ fi
 # --- Run both harnesses, capture exit codes ---------------------------------
 VERIFY_RC=0
 MERGE_RC=0
+EVICT_RC=0
 
 echo
 echo "[run-e2e] === e2e-merge.mjs   (GardenOS at http://127.0.0.1:$PORT/) ==="
@@ -81,9 +82,13 @@ echo "[run-e2e] === e2e-verify.mjs  (legacy recorder at http://127.0.0.1:$PORT/l
 node tests/e2e-verify.mjs "http://127.0.0.1:$PORT/location/" || VERIFY_RC=$?
 
 echo
-echo "[run-e2e] verify_rc=$VERIFY_RC  merge_rc=$MERGE_RC"
+echo "[run-e2e] === e2e-sibling-eviction.mjs  (service-worker sibling cache eviction) ==="
+node tests/e2e-sibling-eviction.mjs "http://127.0.0.1:$PORT/" || EVICT_RC=$?
 
-if [ "$VERIFY_RC" -ne 0 ] || [ "$MERGE_RC" -ne 0 ]; then
+echo
+echo "[run-e2e] verify_rc=$VERIFY_RC  merge_rc=$MERGE_RC  evict_rc=$EVICT_RC"
+
+if [ "$VERIFY_RC" -ne 0 ] || [ "$MERGE_RC" -ne 0 ] || [ "$EVICT_RC" -ne 0 ]; then
   echo "[run-e2e] RESULT=FAIL"
   exit 1
 fi
