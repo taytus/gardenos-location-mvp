@@ -1288,11 +1288,22 @@
     </form>
   </dialog>
 
-  <!-- Sarah recorder: local-dev instrumentation. Streams to localhost:8900 when reachable; degrades silently when not. -->
+  <!-- Sarah recorder: local-dev instrumentation, streamed to the gateway on
+       localhost:8900. Loaded ONLY on a local host. The gateway is unreachable
+       from the deployed HTTPS site (and would be blocked as mixed content), so
+       on a phone this bundle is 36KB that can never do anything. It degrades
+       silently either way; this just keeps it off the device entirely. -->
   <script>
-    window.__sarahConfig = { gateway: "http://localhost:8900", sessionId: "gardenos-depth-0725-kilo" };
+    (function () {
+      var local = ["localhost", "127.0.0.1", "[::1]", ""].indexOf(location.hostname) !== -1;
+      if (!local) return;
+      window.__sarahConfig = { gateway: "http://localhost:8900", sessionId: "gardenos-depth-0725-kilo" };
+      var s = document.createElement("script");
+      s.src = "./vendor/sarah-recorder.global.js";
+      s.async = false;
+      document.head.appendChild(s);
+    })();
   </script>
-  <script src="./vendor/sarah-recorder.global.js"></script>
   <link rel="stylesheet" href="./vendor/sweetalert2.min.css">
   <!-- sweetalert2 must precede confirm.js, which throws if the library is absent -->
   <script src="./vendor/sweetalert2.min.js"></script>
