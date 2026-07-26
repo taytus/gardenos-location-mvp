@@ -727,7 +727,7 @@
         </div>
 
         <div class="grid">
-          <div class="card span-3">
+          <div class="card span-3" data-nav="#/garden" role="link" tabindex="0" aria-label="View garden sections" style="cursor:pointer">
             <div class="metric">
               <div>
                 <span>Garden sections</span>
@@ -737,7 +737,7 @@
             </div>
           </div>
 
-          <div class="card span-3">
+          <div class="card span-3" data-nav="#/plants" role="link" tabindex="0" aria-label="View plantings" style="cursor:pointer">
             <div class="metric">
               <div>
                 <span>Plantings</span>
@@ -747,7 +747,7 @@
             </div>
           </div>
 
-          <div class="card span-3">
+          <div class="card span-3" data-nav="#/tasks" role="link" tabindex="0" aria-label="View open tasks" style="cursor:pointer">
             <div class="metric">
               <div>
                 <span>Open tasks</span>
@@ -757,7 +757,7 @@
             </div>
           </div>
 
-          <div class="card span-3">
+          <div class="card span-3" data-nav="#/journal" role="link" tabindex="0" aria-label="View observations" style="cursor:pointer">
             <div class="metric">
               <div>
                 <span>Observations</span>
@@ -1129,6 +1129,7 @@
     </form>
   </dialog>
 
+  <script src="./js/router.js"></script>
   <script src="./voice-gps.js"></script>
   <script>
     if ('serviceWorker' in navigator && window.isSecureContext) {
@@ -1222,19 +1223,109 @@
     }
 
     function showView(view){
-      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
-      document.getElementById(view).classList.add("active");
-
-      document.querySelectorAll("[data-view]").forEach(btn=>{
-        btn.classList.toggle("active",btn.dataset.view===view);
-      });
-
-      window.scrollTo({top:0,behavior:"smooth"});
+      // Navigation substrate: every view switch is a hash route so the
+      // back button works, deep links paste fresh, and `data-nav` shares
+      // the same path as nav buttons. The router is the single source of
+      // truth for which view is visible.
+      var target = "#/" + view;
+      if (location.hash === target) {
+        if (window.gardenosRouter) window.gardenosRouter.route(target);
+      } else {
+        location.hash = target;
+      }
     }
 
     document.querySelectorAll("[data-view]").forEach(btn=>{
       btn.addEventListener("click",()=>showView(btn.dataset.view));
     });
+
+    // ---- Filtered-listing wiring (alpha) -----------------------------------
+    // The router's onNavigate callback fires AFTER render(), which means we
+    // can safely post-process the DOM (filtering, chips, empty states).
+    // This is the one and only wiring point for the depth rangers: if you
+    // add `#/tasks?section=...` or `#/journal?section=...`, do it here.
+    if (window.gardenosRouter) {
+      window.gardenosRouter.onNavigate(function(view, params){
+        if (view !== "plants") {
+          // Leaving the plants view: clear any leftover filter chip.
+          var list = document.getElementById("plantingList");
+          if (list && list.parentNode) {
+            var prev = list.previousSibling;
+            while (prev && prev.nodeType !== 1) prev = prev.previousSibling;
+            if (prev && prev.classList && prev.classList.contains("gardenos-listing-chip")) {
+              list.parentNode.removeChild(prev);
+            }
+          }
+          return;
+        }
+        var hasSection = params && params.section;
+        var hasTag = params && params.tag;
+        if (!hasSection && !hasTag) {
+          // On plants view with no filter: also drop any chip left over.
+          var pl = document.getElementById("plantingList");
+          if (pl && pl.parentNode) {
+            var ps = pl.previousSibling;
+            while (ps && ps.nodeType !== 1) ps = ps.previousSibling;
+            if (ps && ps.classList && ps.classList.contains("gardenos-listing-chip")) {
+              pl.parentNode.removeChild(ps);
+            }
+          }
+          return;
+        }
+
+        var filterLabel = function(p){
+          if (p.section) {
+            // Accept either a section id (UUID) or a section name.
+            var s = state.sections.find(function(x){ return x.id === p.section; });
+            if (s) return s.name;
+            var byName = state.sections.find(function(x){
+              return (x.name || "").toLowerCase() === String(p.section).toLowerCase();
+            });
+            return byName ? byName.name : p.section;
+          }
+          if (p.tag) return "#" + p.tag;
+          return "";
+        };
+
+        window.gardenosRouter.renderListing({
+          view: "plants",
+          targetId: "plantingList",
+          sourceArray: state.plantings,
+          params: params,
+          filterFn: function(p, q){
+            if (q.section && p.sectionId !== q.section) {
+              // allow section-name fallback for convenience
+              var name = (state.sections.find(function(s){ return s.id === p.sectionId; }) || {}).name;
+              if (!name || name.toLowerCase() !== String(q.section).toLowerCase()) return false;
+            }
+            if (q.tag && (!(p.tags || []).map(function(t){return String(t).toLowerCase();}).includes(String(q.tag).toLowerCase()))) return false;
+            return true;
+          },
+          renderItem: function(p){
+            return '<div class="item">'
+              + '<div>'
+              +   '<h4>' + escapeHtml(p.name) + ' <span class="pill">' + escapeHtml(p.status) + '</span></h4>'
+              +   '<p><strong>' + p.quantity + '</strong> plants · ' + escapeHtml(p.species) + ' · ' + escapeHtml(sectionName(p.sectionId)) + '</p>'
+              +   '<p>' + escapeHtml(p.notes || "No notes") + (p.plantDate ? ' · Planted ' + formatDate(p.plantDate) : '') + '</p>'
+              + '</div>'
+              + '<div class="item-actions">'
+              +   '<button class="icon-btn" data-delete-kind="planting" data-delete-id="' + p.id + '" data-icon="🗑️" onclick="confirmDelete(this, deletePlanting)" title="Delete">🗑️</button>'
+              + '</div>'
+              + '</div>';
+          },
+          emptyHtml: '<div class="empty">No plantings match this filter. '
+            + '<a href="#/plants" data-nav="#/plants" role="link" tabindex="0">Clear filter</a></div>',
+          chipHtml: function(q){
+            var lbl = filterLabel(q);
+            if (!lbl) return "";
+            return '<div class="plantings-filter-chip" style="margin:0 0 12px 0;padding:10px 14px;border-radius:10px;background:rgba(125,180,90,0.18);font-size:13px;display:flex;align-items:center;gap:8px">'
+              + '<span>Filtering by <strong>' + escapeHtml(lbl) + '</strong></span>'
+              + '<a href="#/plants" data-nav="#/plants" role="link" tabindex="0" style="margin-left:auto;text-decoration:underline">× clear</a>'
+              + '</div>';
+          }
+        });
+      });
+    }
 
     function syncSelects(){
       const options = ['<option value="">Unassigned</option>']
